@@ -1,3 +1,11 @@
+/***
+ * IMPORTANT NOTES
+ * The system of the array of rows is 0 indexed, however the cursor is 1 indexed,
+ * sort of like a graph from math, the left most bottom BOX is at 1,1, imagine a 2d grid
+ * where valid points aren't on the intersections of the unit(integer) lines but 
+ * rather the boxes created by them
+ */
+
 #include <termios.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -111,11 +119,21 @@ void incrementCursor(int up, int down, int left, int right){
     }
     if(up && !down && !left && !right){ //up arrow
         if(E.Cy > 1){
-            E.Cy--; //only deccrement if C.y is > 2, note that going up decrements C.y as the top left of the screen is 1,1
+            E.Cy--; //only deccrement if C.y is > 1, note that going up decrements C.y as the top left of the screen is 1,1
+            //keep moving the cursor left until it hits a printable character or 
+            //beginning of the row
+            while(E.Cx > E.rows[E.Cy-1].length + 1){
+              E.Cx--; //snap cursor to end of row
+            }
         }
     } else if(!up && down && !left && !right){ //down arrow
         if(E.Cy <= E.w.ws_row){
             E.Cy++; //only increment C.y if y is < rows limit, the row limit is positive and represents the lowest row of the screen
+            //keep moving the cursor left until it hits a printable character or 
+            //beginning of the row
+            while(E.Cx > E.rows[E.Cy-1].length + 1){
+              E.Cx--; //snap cursor to end of row
+            }
         }
     } else if(!up && !down && left && !right){ //left arrow
         if(E.Cx > 1){
