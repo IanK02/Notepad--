@@ -129,6 +129,12 @@ void createNewRow(void){ //create a new row of text
   E.rows[E.numrows - 1].length = 0;
 }
 
+void shiftRowsDown(int index){ //shift all rows up to index down 1
+  for(int i = E.numrows - 1; i > index; i--){
+    E.rows[i] = E.rows[i-1];
+  }
+}
+
 void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx) + 1;
     char *buf = malloc(buf_size);
@@ -272,10 +278,27 @@ void sortEscapes(char c){
 }
 
 void addRow(void){ //add a new row of text in response to the enter key being pressed
+  if(E.Cx-1 == E.rows[E.Cy-1].length && E.Cy == E.numrows){ //check if cursor is at the end of the row it's on and if current row is 
+      createNewRow();                                       //the bottom row
+      incrementCursor(0,1,0,0); //move cursor down
+  }else if (E.Cx-1 == E.rows[E.Cy-1].length){ //cursor at end of row but not on bottom row
+      createNewRow();
+      shiftRowsDown(E.Cy-1);
+
+      E.rows[E.Cy].chars = NULL; //initialize the new row we just made room for to empty
+      E.rows[E.Cy].length = 0;
+
+      incrementCursor(0,1,0,0); //move cursor down
+  }else if(E.Cx-1 != E.rows[E.Cy-1].length && E.Cx-1 != 0 && E.Cy != E.numrows){ 
+          //cursor not at end of row or beginning of row or on the bottom row
+  }else if (E.Cx-1 == 0){ //cursor at beginning of row
     createNewRow();
+    shiftRowsDown(E.Cy-1);
+    E.rows[E.Cy-1].chars = NULL; //reset the old row to nothing
+    E.rows[E.Cy-1].length = 0;
+
     incrementCursor(0,1,0,0); //move cursor down
-    //E.Cy++;
-    E.Cx = 1; //move cursor to far left of screen, essentially a carriage return
+  }
 }
 
 void sortKeypress(char c){
