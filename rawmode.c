@@ -19,6 +19,11 @@
 #define CTRL_KEY(k) ((k) & 0x1f) //used to check if ctrl + some character was pressed
 
 /*** Structures ***/
+struct cmd_buf{
+  char *cmds;
+  int len;
+};
+
 typedef struct row {
   /***
    * This represents a row of text, it will contain the information listed below
@@ -47,9 +52,26 @@ struct editor {
 };
 
 struct editor E; //The global editor struct
+struct cmd_buf cbuf; //The global command buffer
 
 /*** Functions ***/
 void createNewRow(void);
+
+void add_cmd(char *cmd){
+  cbuf.len += strlen(cmd) + 1;
+  cbuf.cmds = realloc(cbuf.cmds, cbuf.len); //reallocate cmds to make space for thew new command
+  if(cbuf.cmds == NULL){ //check if realloc was successful
+    printf("Memory allocation failed\n");
+    return;
+  }
+  snprintf(cbuf.cmds, strlen(cmd) + 1, "%s", cmd); //add the cmd to cmds
+}
+
+void writeCmds(void){
+  write(STDOUT_FILENO, cbuf.cmds, cbuf.len);
+  cbuf.len = 0; //set len back to 0
+  free(cbuf.cmds); //free memory allocated to cmds
+}
 
 void getWinSize(void){
     ioctl(0, TIOCGWINSZ, &E.w);
@@ -68,6 +90,9 @@ void initEditor(void){
 
   write(STDOUT_FILENO, "\x1b[2J", 4); //clear the screen
   write(STDOUT_FILENO, "\x1b[H", 3); //actually move the cursor to the top left of the screen
+
+  cbuf.cmds = malloc(0); //initialize the command buffers commands to NULL and length to 0
+  cbuf.len = 0;
 }
 
 void exitRawMode(void){
@@ -109,6 +134,7 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     char *buf = malloc(buf_size);
     snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy, E.Cx);
     write(STDOUT_FILENO, buf, buf_size - 1);
+    //add_cmd(buf);
     free(buf);
 }
 
@@ -317,5 +343,6 @@ int main(void){
     sortKeypress(c);
     clearScreen();
     writeScreen();
+    //writeCmds();
   }
 }
