@@ -51,8 +51,9 @@ void initEditor(void){
   //initialize the global editor object's values as well as clear screen and set cursor at starting position
   //E.rows = NULL; //initialize rows to null as no text is present yet
   createNewRow(); //we create the first row, it has no chars, E.numrows doesn't need to be initialized anymore
-  E.Cx = 1; //initialize cursor position to (1,0) which is the top left of the screen
-  E.Cy = 0;
+  E.Cx = 1; //initialize cursor position to (1,1) which is the top left of the screen
+  E.Cy = 1;
+
   //E.numrows = 0; //initialize numrows to 0 as no rows of text are present yet
   //we don't have to initialize termios_o as enableRawMode takes care of setting its attributes
   getWinSize(); //this call to get winsize takes cares of initializing winsize w to have the correct values
@@ -71,7 +72,9 @@ void enableRawMode(void){
   //on the program's exit
   tcgetattr(STDIN_FILENO, &E.termios_o);
   struct termios termios_r = E.termios_o;
+
   atexit(exitRawMode);
+  
   termios_r.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
                   | INLCR | IGNCR | ICRNL | IXON);
   termios_r.c_oflag &= ~OPOST;
@@ -107,11 +110,11 @@ void incrementCursor(int up, int down, int left, int right){
         return;
     }
     if(up && !down && !left && !right){ //up arrow
-        if(E.Cy > 0){
-            E.Cy--; //only increment if C.y is > 0, note that going up decrements C.y as the top left of the screen is 0,0
+        if(E.Cy > 1){
+            E.Cy--; //only deccrement if C.y is > 2, note that going up decrements C.y as the top left of the screen is 1,1
         }
     } else if(!up && down && !left && !right){ //down arrow
-        if(E.Cy < E.w.ws_row){
+        if(E.Cy <= E.w.ws_row){
             E.Cy++; //only increment C.y if y is < rows limit, the row limit is positive and represents the lowest row of the screen
         }
     } else if(!up && !down && left && !right){ //left arrow
@@ -140,12 +143,12 @@ void moveCursor(char c, char *buf){
         //cursor_move_cmd();
         break;
     case 'B': //down arrow
-        if(E.Cy < E.numrows - 1) incrementCursor(0,1,0,0); //limit cursor to one above the lowest row
+        if(E.Cy <= E.numrows - 1) incrementCursor(0,1,0,0); //limit cursor to one above the lowest row
 
         //cursor_move_cmd();
         break;
     case 'C': //right arrow
-        if(E.Cx <= E.rows[E.Cy].length) incrementCursor(0,0,0,1); //limit cursor at only one space further right than the text
+        if(E.Cx <= E.rows[E.Cy-1].length) incrementCursor(0,0,0,1); //limit cursor at only one space further right than the text
 
         //cursor_move_cmd();
         break;
@@ -176,31 +179,31 @@ void shiftLineCharsL(int index, row *row){ //shift all characters in a row to th
 }
 
 void addPrintableChar(char c){
-  E.rows[E.Cy].length++;//increment the row's length
-  E.rows[E.Cy].chars = realloc(E.rows[E.Cy].chars, E.rows[E.Cy].length); //reallocate the memory of the row to accomodate the new character
+  E.rows[E.Cy-1].length++;//increment the row's length
+  E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to accomodate the new character
   
-  shiftLineCharsR(E.Cx-1, E.rows + E.Cy); //shift all the characters(up to the character BEHIND the cursor) one to the right
-  if(E.Cx <= E.rows[E.Cy].length && E.Cy >= 0) E.rows[E.Cy].chars[E.Cx-1] = c; //set the char of the character BEHIND the cursor to c
+  shiftLineCharsR(E.Cx-1, E.rows + E.Cy - 1); //shift all the characters(up to the character BEHIND the cursor) one to the right
+  if(E.Cx <= E.rows[E.Cy-1].length && E.Cy >= 1) E.rows[E.Cy-1].chars[E.Cx-1] = c; //set the char of the character BEHIND the cursor to c
 
   E.Cx++; //move the cursor one to the right to account for the new character
 }
 
 void backspacePrintableChar(void){
     if(E.Cx > 1){
-        shiftLineCharsL(E.Cx-2, E.rows + E.Cy); //shift all the characters(up to the character BEHIND the cursor) one to the left
-        E.rows[E.Cy].chars[E.rows[E.Cy].length - 1] = '\0'; //delete last character in the row
-        E.rows[E.Cy].length--; //decrement the row's length
-        E.rows[E.Cy].chars = realloc(E.rows[E.Cy].chars, E.rows[E.Cy].length); //reallocate the memory of the row to be smaller
+        shiftLineCharsL(E.Cx-2, E.rows + E.Cy - 1); //shift all the characters(up to the character BEHIND the cursor) one to the left
+        E.rows[E.Cy-1].chars[E.rows[E.Cy-1].length - 1] = '\0'; //delete last character in the row
+        E.rows[E.Cy-1].length--; //decrement the row's length
+        E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to be smaller
         E.Cx--; //move the cursor one space left
     }
 }
 
 void deletePrintableChar(void){
     if(E.Cx > 0){
-        shiftLineCharsL(E.Cx-1, E.rows + E.Cy); //shift all the characters(up to the character on the cursor) one to the left
-        E.rows[E.Cy].chars[E.rows[E.Cy].length - 1] = '\0'; //delete last character in the row
-        E.rows[E.Cy].length--; //decrement the row's length
-        E.rows[E.Cy].chars = realloc(E.rows[E.Cy].chars, E.rows[E.Cy].length); //reallocate the memory of the row to be smaller
+        shiftLineCharsL(E.Cx-1, E.rows + E.Cy-1); //shift all the characters(up to the character on the cursor) one to the left
+        E.rows[E.Cy-1].chars[E.rows[E.Cy-1].length - 1] = '\0'; //delete last character in the row
+        E.rows[E.Cy-1].length--; //decrement the row's length
+        E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to be smaller
     }
 }
 
@@ -211,8 +214,8 @@ void sortEscapes(char c){
     read(STDIN_FILENO, buf + 2, 1); //read next byte of input into buf
     if(buf[2] == '3'){ //delete key was pressed
         read(STDIN_FILENO, buf + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
-        if(E.rows[E.Cy].chars != NULL){ //check if the row is empty
-            int current_char = (int)E.rows[E.Cy].chars[E.Cx - 1];
+        if(E.rows[E.Cy-1].chars != NULL){ //check if the row is empty
+            int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
             if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
                 deletePrintableChar();
             }
@@ -220,13 +223,14 @@ void sortEscapes(char c){
         free(buf); //free memory allocated to buf
     } else { //arrow key was pressed 
         //read(STDIN_FILENO, buf + 2, 1); //read one more byte of input into buf
-        moveCursor(c, buf);
+        moveCursor(c, buf); //moveCursor will only increment C's position
     }
 }
 
 void addRow(void){ //add a new row of text in response to the enter key being pressed
     createNewRow();
-    E.Cy++; //move cursor down
+    incrementCursor(0,1,0,0); //move cursor down
+    //E.Cy++;
     E.Cx = 1; //move cursor to far left of screen, essentially a carriage return
 }
 
@@ -273,7 +277,7 @@ char processKeypress(void){
 
 void clearScreen(void){
   write(STDOUT_FILENO, "\x1b[2J", 4); //clear the entire screen
-  write(STDOUT_FILENO, "\x1b[0G", 4); //rest cursor to top left(visible change)
+  write(STDOUT_FILENO, "\x1b[H", 3); //rest cursor to top left(visible change)
 }
 
 void writeScreen(void){
@@ -282,7 +286,7 @@ void writeScreen(void){
    */
   for(int i = 0; i < E.numrows; i++){
     write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
-    //write(STDOUT_FILENO, "\n", 1);
+    write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
   }
   cursor_move_cmd(); //move cursor to current cursor position(visible change)
 }
