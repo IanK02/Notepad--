@@ -91,7 +91,7 @@ void initEditor(void){
   write(STDOUT_FILENO, "\x1b[2J", 4); //clear the screen
   write(STDOUT_FILENO, "\x1b[H", 3); //actually move the cursor to the top left of the screen
 
-  cbuf.cmds = malloc(0); //initialize the command buffers commands to NULL and length to 0
+  cbuf.cmds = NULL; //initialize the command buffers commands to NULL and length to 0
   cbuf.len = 0;
 }
 
@@ -289,12 +289,30 @@ void addRow(void){ //add a new row of text in response to the enter key being pr
       E.rows[E.Cy].length = 0;
 
       incrementCursor(0,1,0,0); //move cursor down
-  }else if(E.Cx-1 != E.rows[E.Cy-1].length && E.Cx-1 != 0 && E.Cy != E.numrows){ 
-          //cursor not at end of row or beginning of row or on the bottom row
-  }else if (E.Cx-1 == 0){ //cursor at beginning of row
+  }else if(E.Cx-1 != E.rows[E.Cy-1].length && E.Cx-1 != 0){ 
+          //cursor not at end of row or beginning of row 
+    createNewRow();
+    int copy_length = E.rows[E.Cy-1].length - (E.Cx-1); //the length of how much of the string to move to the next row down
+    char *copy_buf;
+    copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
+    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the last 4 bytes of chars to copy_buf
+    shiftRowsDown(E.Cy-1); //shift all rows down
+    printf("%s", copy_buf);
+
+    E.rows[E.Cy].chars = copy_buf; //copy copy_buf to the row above current row
+    E.rows[E.Cy].length = copy_length;
+
+    E.rows[E.Cy-1].chars[E.Cx-1] = '\0'; //cut off the current row at cursor position
+    E.rows[E.Cy-1].length = E.rows[E.Cy-1].length - copy_length; //decrement the current row's length
+    E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate current row's memory
+
+    incrementCursor(0,1,0,0); //move cursor down
+    //free(copy_buf);
+    
+  }else if (E.Cx-1 == 0){ //cursor at beginning of row, can be any row
     createNewRow();
     shiftRowsDown(E.Cy-1);
-    E.rows[E.Cy-1].chars = NULL; //reset the old row to nothing
+    E.rows[E.Cy-1].chars = NULL; //reset the old row to nothing, this is where this differs from line 288
     E.rows[E.Cy-1].length = 0;
 
     incrementCursor(0,1,0,0); //move cursor down
