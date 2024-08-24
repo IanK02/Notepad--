@@ -1,3 +1,4 @@
+#include "notepadmm.h"
 /***
  * IMPORTANT NOTES
  * The system of the array of rows is 0 indexed, however the cursor is 1 indexed,
@@ -54,8 +55,16 @@ struct editor {
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
 
+/*** Function Prototypes ***/
+//note for these prototypes I didn't want to include them in the header file because
+//they take one of the structs I've defined as parameters so I just didn't want to bother
+//with defining the struct in the header file
+void shiftLineCharsR(int index, row *row);
+void shiftLineCharsL(int index, row *row);
+
+
+
 /*** Functions ***/
-void createNewRow(void);
 
 void add_cmd(char *cmd){
   cbuf.len += strlen(cmd) + 1;
