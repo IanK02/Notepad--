@@ -1,4 +1,4 @@
-#include "notepadmm.h"
+#include "notepadmm.h" //header file of function prototypes
 /***
  * IMPORTANT NOTES
  * The system of the array of rows is 0 indexed, however the cursor is 1 indexed,
@@ -18,6 +18,7 @@
 
 /*** Defines  ***/
 #define CTRL_KEY(k) ((k) & 0x1f) //used to check if ctrl + some character was pressed
+
 
 /*** Structures ***/
 struct cmd_buf{
@@ -55,6 +56,7 @@ struct editor {
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
 
+
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
 //they take one of the structs I've defined as parameters so I just didn't want to bother
@@ -62,10 +64,7 @@ struct cmd_buf cbuf; //The global command buffer
 void shiftLineCharsR(int index, row *row);
 void shiftLineCharsL(int index, row *row);
 
-
-
-/*** Functions ***/
-
+/*** Command Buffer ***/
 void add_cmd(char *cmd){
   cbuf.len += strlen(cmd) + 1;
   cbuf.cmds = realloc(cbuf.cmds, cbuf.len); //reallocate cmds to make space for thew new command
@@ -82,8 +81,31 @@ void writeCmds(void){
   free(cbuf.cmds); //free memory allocated to cmds
 }
 
+/*** Editor Initialization ***/
 void getWinSize(void){
     ioctl(0, TIOCGWINSZ, &E.w);
+}
+
+void enableRawMode(void){
+  //This function will enable raw mode in the terminal, as well as disable raw mode 
+  //on the program's exit
+  tcgetattr(STDIN_FILENO, &E.termios_o);
+  struct termios termios_r = E.termios_o;
+
+  atexit(exitRawMode);
+  
+  termios_r.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
+                  | INLCR | IGNCR | ICRNL | IXON);
+  termios_r.c_oflag &= ~OPOST;
+  termios_r.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+  termios_r.c_cflag &= ~(CSIZE | PARENB);
+  termios_r.c_cflag |= CS8;
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_r);
+}
+
+void exitRawMode(void){
+  //Called on program exit to disable raw mode and return terminal to normal
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.termios_o);
 }
 
 void initEditor(void){
@@ -104,29 +126,8 @@ void initEditor(void){
   cbuf.len = 0;
 }
 
-void exitRawMode(void){
-  //Called on program exit to disable raw mode and return terminal to normal
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.termios_o);
-}
-
-void enableRawMode(void){
-  //This function will enable raw mode in the terminal, as well as disable raw mode 
-  //on the program's exit
-  tcgetattr(STDIN_FILENO, &E.termios_o);
-  struct termios termios_r = E.termios_o;
-
-  atexit(exitRawMode);
-  
-  termios_r.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
-                  | INLCR | IGNCR | ICRNL | IXON);
-  termios_r.c_oflag &= ~OPOST;
-  termios_r.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
-  termios_r.c_cflag &= ~(CSIZE | PARENB);
-  termios_r.c_cflag |= CS8;
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios_r);
-}
-
-void createNewRow(void){ //create a new row of text
+/*** Row Manipulation Methods ***/
+void createNewRow(void){ //create a new row of text within the global editor object's dynamic array of rows
   E.numrows++; //increment number of rows
 
   E.rows = realloc(E.rows, sizeof(row) * E.numrows); //reallocate the memory of rows to accomodate for the new row
@@ -144,15 +145,53 @@ void shiftRowsDown(int index){ //shift all rows up to index down 1
   }
 }
 
-void cursor_move_cmd(void){ //move cursor to location specified by global cursor
-    int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx) + 1;
-    char *buf = malloc(buf_size);
-    snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy, E.Cx);
-    write(STDOUT_FILENO, buf, buf_size - 1);
-    //add_cmd(buf);
-    free(buf);
+void addRow(void){ //make a new row of text that is actually visible
+  if(E.Cx-1 == E.rows[E.Cy-1].length && E.Cy == E.numrows){ //check if cursor is at the end of the row it's on and if current row is 
+      createNewRow();                                       //the bottom row
+      incrementCursor(0,1,0,0); //move cursor down
+  }else if (E.Cx-1 == E.rows[E.Cy-1].length){ //cursor at end of row but not on bottom row
+      createNewRow();
+      shiftRowsDown(E.Cy-1);
+
+      E.rows[E.Cy].chars = NULL; //initialize the new row we just made room for to empty
+      E.rows[E.Cy].length = 0;
+
+      incrementCursor(0,1,0,0); //move cursor down
+  }else if(E.Cx-1 != E.rows[E.Cy-1].length && E.Cx-1 != 0){ 
+          //cursor not at end of row or beginning of row 
+    createNewRow();
+    int copy_length = E.rows[E.Cy-1].length - (E.Cx-1); //the length of how much of the string to move to the next row down
+    char *copy_buf;
+    copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
+    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the last 4 bytes of chars to copy_buf
+    shiftRowsDown(E.Cy-1); //shift all rows down
+    printf("%s", copy_buf);
+
+    E.rows[E.Cy].chars = copy_buf; //copy copy_buf to the row above current row
+    E.rows[E.Cy].length = copy_length;
+
+    E.rows[E.Cy-1].chars[E.Cx-1] = '\0'; //cut off the current row at cursor position
+    E.rows[E.Cy-1].length = E.rows[E.Cy-1].length - copy_length; //decrement the current row's length
+    E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate current row's memory
+
+    incrementCursor(0,1,0,0); //move cursor down
+    //free(copy_buf);
+    
+  }else if (E.Cx-1 == 0){ //cursor at beginning of row, can be any row
+    createNewRow();
+    shiftRowsDown(E.Cy-1);
+    E.rows[E.Cy-1].chars = NULL; //reset the old row to nothing, this is where this differs from line 288
+    E.rows[E.Cy-1].length = 0;
+
+    incrementCursor(0,1,0,0); //move cursor down
+  }
 }
 
+void removeRow(void){
+  
+}
+
+/*** Cursor Manipulation Methods ***/
 void incrementCursor(int up, int down, int left, int right){  
     if((up^down^left^right) != 1 || up+down+left+right != 1){
         printf("Only one parameter can be 1, all others must be 0");
@@ -223,6 +262,7 @@ void moveCursor(char c, char *buf){
     //free(cmd); //free the memory allocated to cmd 
 }
 
+/*** Charcater Manipulation Methods ***/
 void shiftLineCharsR(int index, row *row){ //shift all characters in a row to the right by one, at index two characters will be identical,
                                            //they will be copies of the character at that index in the original string
     for (int i = row->length - 1; i > index; i--) {
@@ -266,6 +306,7 @@ void deletePrintableChar(void){
     }
 }
 
+/*** User Input Processing ***/
 void sortEscapes(char c){
     char *buf = malloc(4); //three character buffer to store all three characters of the arrow key commands
     buf[0] = c;
@@ -282,50 +323,9 @@ void sortEscapes(char c){
         free(buf); //free memory allocated to buf
     } else { //arrow key was pressed 
         //read(STDIN_FILENO, buf + 2, 1); //read one more byte of input into buf
-        moveCursor(c, buf); //moveCursor will only increment C's position
+        moveCursor(c, buf); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
+        //read in the rest of the command buffer, so that's why we use a separate moveCursor function
     }
-}
-
-void addRow(void){ //add a new row of text in response to the enter key being pressed
-  if(E.Cx-1 == E.rows[E.Cy-1].length && E.Cy == E.numrows){ //check if cursor is at the end of the row it's on and if current row is 
-      createNewRow();                                       //the bottom row
-      incrementCursor(0,1,0,0); //move cursor down
-  }else if (E.Cx-1 == E.rows[E.Cy-1].length){ //cursor at end of row but not on bottom row
-      createNewRow();
-      shiftRowsDown(E.Cy-1);
-
-      E.rows[E.Cy].chars = NULL; //initialize the new row we just made room for to empty
-      E.rows[E.Cy].length = 0;
-
-      incrementCursor(0,1,0,0); //move cursor down
-  }else if(E.Cx-1 != E.rows[E.Cy-1].length && E.Cx-1 != 0){ 
-          //cursor not at end of row or beginning of row 
-    createNewRow();
-    int copy_length = E.rows[E.Cy-1].length - (E.Cx-1); //the length of how much of the string to move to the next row down
-    char *copy_buf;
-    copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
-    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the last 4 bytes of chars to copy_buf
-    shiftRowsDown(E.Cy-1); //shift all rows down
-    printf("%s", copy_buf);
-
-    E.rows[E.Cy].chars = copy_buf; //copy copy_buf to the row above current row
-    E.rows[E.Cy].length = copy_length;
-
-    E.rows[E.Cy-1].chars[E.Cx-1] = '\0'; //cut off the current row at cursor position
-    E.rows[E.Cy-1].length = E.rows[E.Cy-1].length - copy_length; //decrement the current row's length
-    E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate current row's memory
-
-    incrementCursor(0,1,0,0); //move cursor down
-    //free(copy_buf);
-    
-  }else if (E.Cx-1 == 0){ //cursor at beginning of row, can be any row
-    createNewRow();
-    shiftRowsDown(E.Cy-1);
-    E.rows[E.Cy-1].chars = NULL; //reset the old row to nothing, this is where this differs from line 288
-    E.rows[E.Cy-1].length = 0;
-
-    incrementCursor(0,1,0,0); //move cursor down
-  }
 }
 
 void sortKeypress(char c){
@@ -356,6 +356,16 @@ void sortKeypress(char c){
   }
 }
 
+/*** Visible Output ***/
+void cursor_move_cmd(void){ //move cursor to location specified by global cursor
+    int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx) + 1;
+    char *buf = malloc(buf_size);
+    snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy, E.Cx);
+    write(STDOUT_FILENO, buf, buf_size - 1);
+    //add_cmd(buf);
+    free(buf);
+}
+
 char processKeypress(void){
   //This function will read a key pressed from the user and return it, no more
     char c = '\0';
@@ -384,6 +394,8 @@ void writeScreen(void){
   }
   cursor_move_cmd(); //move cursor to current cursor position(visible change)
 }
+
+/*** Main Loop ***/
 
 int main(void){
   enableRawMode();

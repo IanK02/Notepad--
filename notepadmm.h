@@ -21,5 +21,6 @@ void sortKeypress(char);
 char processKeypress(void);
 void clearScreen(void);
 void writeScreen(void);
+void removeRow(void);
 
 #endif 
