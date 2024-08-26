@@ -6,7 +6,6 @@
  * where valid points aren't on the intersections of the unit lines but 
  * rather the boxes created by them
  */
-
 #include <termios.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -18,7 +17,6 @@
 
 /*** Defines  ***/
 #define CTRL_KEY(k) ((k) & 0x1f) //used to check if ctrl + some character was pressed
-
 
 /*** Structures ***/
 struct cmd_buf{
@@ -53,6 +51,7 @@ struct editor {
   struct winsize w;
 };
 
+/*** Global Variables ***/
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
 
@@ -65,20 +64,31 @@ void shiftLineCharsR(int index, row *row);
 void shiftLineCharsL(int index, row *row);
 
 /*** Command Buffer ***/
-void add_cmd(char *cmd){
-  cbuf.len += strlen(cmd) + 1;
-  cbuf.cmds = realloc(cbuf.cmds, cbuf.len); //reallocate cmds to make space for thew new command
-  if(cbuf.cmds == NULL){ //check if realloc was successful
-    printf("Memory allocation failed\n");
-    return;
+void add_cmd(char *cmd, int last_cmd){
+  if(cmd != NULL){
+    int cmd_len = snprintf(NULL, 0, "%s", cmd);
+    if(last_cmd) cmd_len++;
+    // cmd_len = strlen(cmd);
+    cbuf.len += cmd_len;
+    cbuf.cmds = realloc(cbuf.cmds, cbuf.len); //reallocate cmds to make space for the new command
+    if(cbuf.cmds == NULL){ //check if realloc was successful
+      printf("Memory allocation failed\n");
+      return;
+    }
+    if(last_cmd){
+      memcpy(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len-1);
+    }else{
+      memcpy(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len);
+    }
+    //snprintf(cbuf.cmds + cbuf.len - cmd_len, cmd_len, "%s", cmd);
+    //write(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len);
   }
-  snprintf(cbuf.cmds, strlen(cmd) + 1, "%s", cmd); //add the cmd to cmds
 }
 
 void writeCmds(void){
   write(STDOUT_FILENO, cbuf.cmds, cbuf.len);
   cbuf.len = 0; //set len back to 0
-  free(cbuf.cmds); //free memory allocated to cmds
+  cbuf.cmds = realloc(cbuf.cmds, 0); //reduce cmds back to NULL
 }
 
 /*** Editor Initialization ***/
@@ -122,7 +132,7 @@ void initEditor(void){
   write(STDOUT_FILENO, "\x1b[2J", 4); //clear the screen
   write(STDOUT_FILENO, "\x1b[H", 3); //actually move the cursor to the top left of the screen
 
-  cbuf.cmds = NULL; //initialize the command buffers commands to NULL and length to 0
+  cbuf.cmds = NULL; //initialize the command buffers commands to "" and length to 0
   cbuf.len = 0;
 }
 
@@ -298,9 +308,7 @@ void moveCursor(char c, char *buf){
         break;
     default:
         break;
-    }
-    free(buf); //free the memory allocated to buf
-    //free(cmd); //free the memory allocated to cmd 
+    } 
 }
 
 /*** Charcater Manipulation Methods ***/
@@ -366,7 +374,7 @@ void sortEscapes(char c){
     read(STDIN_FILENO, buf + 2, 1); //read next byte of input into buf
     if(buf[2] == '3'){ //delete key was pressed
         read(STDIN_FILENO, buf + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
-        if(E.rows[E.Cy-1].chars != NULL){ //check if the row is empty
+        if(E.rows[E.Cy-1].chars != NULL){ //check if the row isn't empty
             int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
             if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
                 deletePrintableChar();
@@ -374,12 +382,12 @@ void sortEscapes(char c){
         } else if(E.Cy != E.numrows){ //check that the cursor isn't on the bottom row
             removeRow(0);
         }
-        free(buf); //free memory allocated to buf
     } else { //arrow key was pressed 
         //read(STDIN_FILENO, buf + 2, 1); //read one more byte of input into buf
         moveCursor(c, buf); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
         //read in the rest of the command buffer, so that's why we use a separate moveCursor function
     }
+    free(buf); //free memory allocated to buf
 }
 
 void sortKeypress(char c){
@@ -418,11 +426,14 @@ void sortKeypress(char c){
 /*** Visible Output ***/
 void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     write(STDOUT_FILENO, "\x1b[?25l", 6); //make cursor invisible
+    //add_cmd("\x1b[?25l"); //make cursor inivisble
     int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx) + 1;
     char *buf = malloc(buf_size);
     snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy, E.Cx);
     write(STDOUT_FILENO, buf, buf_size - 1); //move cursor to location specified by Cx and Cy
     write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
+    //add_cmd(buf);
+    //add_cmd("\x1b[?25h"); //make cursor visible
     //add_cmd(buf);
     free(buf);
 }
@@ -449,10 +460,16 @@ void writeScreen(void){
   /***
    * This will write each row within the global editor object's dynamic arrow of rows to the screen
    */
-  for(int i = 0; i < E.numrows; i++){
-    write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
-    write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
+  for(int i = 0; i < E.numrows - 1; i++){
+    //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
+    add_cmd(E.rows[i].chars, 0);
+    //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
+    add_cmd("\r\n", 0);
   }
+  add_cmd(E.rows[E.numrows - 1].chars, 0);
+  add_cmd("\r\n", 1);
+  writeCmds();
+  
   cursor_move_cmd(); //move cursor to current cursor position(visible change)
 }
 

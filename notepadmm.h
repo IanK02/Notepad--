@@ -1,7 +1,7 @@
 #ifndef NOTEPADMM_H
 #define NOTEPADMM_H
 
-void add_cmd(char *);
+void add_cmd(char *, int);
 void writeCmds(void);
 void getWinSize(void);
 void initEditor(void);
