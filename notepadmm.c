@@ -2,8 +2,8 @@
 /***
  * IMPORTANT NOTES
  * The system of the array of rows is 0 indexed, however the cursor is 1 indexed,
- * sort of like a graph from math, the left most bottom BOX is at 1,1, imagine a 2d grid
- * where valid points aren't on the intersections of the unit(integer) lines but 
+ * sort of like a graph from math, the left most bottom box is at 1,1, imagine a 2d grid
+ * where valid points aren't on the intersections of the unit lines but 
  * rather the boxes created by them
  */
 
@@ -181,7 +181,6 @@ void addRow(void){ //make a new row of text that is actually visible
     copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
     memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the current row to copy_buf
     shiftRowsDown(E.Cy-1); //shift all rows down
-    printf("%s", copy_buf);
 
     E.rows[E.Cy].chars = copy_buf; //copy copy_buf to the row above current row
     E.rows[E.Cy].length = copy_length;
@@ -215,7 +214,6 @@ void removeRow(int backSpace){
     char *copy_buf;
     copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
     memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the current row to copy_buf
-    printf("%s", copy_buf);
 
     //move the cursor up and snap the cursor to the far left of the new row
     incrementCursor(1,0,0,0); //increment cursor up if moveCursor is 1
@@ -330,6 +328,17 @@ void addPrintableChar(char c){
   E.Cx++; //move the cursor one to the right to account for the new character
 }
 
+void tabPressed(){
+  E.rows[E.Cy-1].length += 4; //increment the row's length accordingly
+  E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to accomodate the new characters
+
+  for(int i = 0; i < 4; i++){
+    shiftLineCharsR(E.Cx-1, E.rows + E.Cy - 1); //shift all the characters(up to the character BEHIND the cursor) one to the right
+    if(E.Cx <= E.rows[E.Cy-1].length && E.Cy >= 1) E.rows[E.Cy-1].chars[E.Cx-1] = ' '; //set the char of the character BEHIND the cursor to c
+    E.Cx++; //move the cursor one to the right to account for the new character
+  }
+}
+
 void backspacePrintableChar(void){
     if(E.Cx > 1){
         shiftLineCharsL(E.Cx-2, E.rows + E.Cy - 1); //shift all the characters(up to the character BEHIND the cursor) one to the left
@@ -363,7 +372,7 @@ void sortEscapes(char c){
                 deletePrintableChar();
             }
         } else if(E.Cy != E.numrows){ //check that the cursor isn't on the bottom row
-          removeRow(0);
+            removeRow(0);
         }
         free(buf); //free memory allocated to buf
     } else { //arrow key was pressed 
@@ -385,7 +394,6 @@ void sortKeypress(char c){
    * Each of these (1-5) will have their own function(s), which sortKeypress will call
    */
   int ascii_code = (int)c;
-  printf("%u", ascii_code);
   //write(STDOUT_FILENO, &c, 1);
   if(ascii_code >= 32 && ascii_code < 127){ //the character inputted is a printable character, including space!
     addPrintableChar(c);
@@ -400,6 +408,8 @@ void sortKeypress(char c){
   } else if (ascii_code == 27){ //escape character was pressed, weird functions coming up
     //moveCursor(c); //this function will move the cursor and will need a special 3 character buffer to read the cursor move command
     sortEscapes(c);
+  } else if (ascii_code == 9){ //tab was pressed
+    tabPressed();
   } else { //one of the unmapped keys was pressed so just do nothing
     return;
   }
@@ -407,10 +417,12 @@ void sortKeypress(char c){
 
 /*** Visible Output ***/
 void cursor_move_cmd(void){ //move cursor to location specified by global cursor
+    write(STDOUT_FILENO, "\x1b[?25l", 6); //make cursor invisible
     int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx) + 1;
     char *buf = malloc(buf_size);
     snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy, E.Cx);
-    write(STDOUT_FILENO, buf, buf_size - 1);
+    write(STDOUT_FILENO, buf, buf_size - 1); //move cursor to location specified by Cx and Cy
+    write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
     //add_cmd(buf);
     free(buf);
 }
