@@ -7,7 +7,7 @@ void getWinSize(void);
 void initEditor(void);
 void exitRawMode(void);
 void enableRawMode(void);
-void createNewRow(void);
+void appendRow(void);
 void shiftRowsDown(int);
 void cursor_move_cmd(void);
 void incrementCursor(int, int, int, int);
@@ -21,6 +21,6 @@ void sortKeypress(char);
 char processKeypress(void);
 void clearScreen(void);
 void writeScreen(void);
-void removeRow(void);
+void removeRow(int);
 
 #endif 

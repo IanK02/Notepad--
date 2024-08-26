@@ -111,7 +111,7 @@ void exitRawMode(void){
 void initEditor(void){
   //initialize the global editor object's values as well as clear screen and set cursor at starting position
   //E.rows = NULL; //initialize rows to null as no text is present yet
-  createNewRow(); //we create the first row, it has no chars, E.numrows doesn't need to be initialized anymore
+  appendRow(); //we create the first row, it has no chars, E.numrows doesn't need to be initialized anymore
   E.Cx = 1; //initialize cursor position to (1,1) which is the top left of the screen
   E.Cy = 1;
 
@@ -127,7 +127,7 @@ void initEditor(void){
 }
 
 /*** Row Manipulation Methods ***/
-void createNewRow(void){ //create a new row of text within the global editor object's dynamic array of rows
+void appendRow(void){ //append a new row of text to the global editor object's dynamic array of rows
   E.numrows++; //increment number of rows
 
   E.rows = realloc(E.rows, sizeof(row) * E.numrows); //reallocate the memory of rows to accomodate for the new row
@@ -139,18 +139,34 @@ void createNewRow(void){ //create a new row of text within the global editor obj
   E.rows[E.numrows - 1].length = 0;
 }
 
+void deleteExistingRow(void){
+  E.numrows--; //decrement number of rows
+
+  E.rows = realloc(E.rows, sizeof(row) * E.numrows); //reallocate the memory of rows to accomodate the new array size
+  if (E.rows == NULL) { //check if reallocation was successful
+      printf("Memory allocation failed\n");
+      exit(1);
+  }
+}
+
 void shiftRowsDown(int index){ //shift all rows up to index down 1
   for(int i = E.numrows - 1; i > index; i--){
     E.rows[i] = E.rows[i-1];
   }
 }
 
+void shiftRowsUp(int index){
+  for(int i = index; i < E.numrows - 1; i++){
+    E.rows[i] = E.rows[i+1];
+  }
+}
+
 void addRow(void){ //make a new row of text that is actually visible
   if(E.Cx-1 == E.rows[E.Cy-1].length && E.Cy == E.numrows){ //check if cursor is at the end of the row it's on and if current row is 
-      createNewRow();                                       //the bottom row
+      appendRow();                                       //the bottom row
       incrementCursor(0,1,0,0); //move cursor down
   }else if (E.Cx-1 == E.rows[E.Cy-1].length){ //cursor at end of row but not on bottom row
-      createNewRow();
+      appendRow();
       shiftRowsDown(E.Cy-1);
 
       E.rows[E.Cy].chars = NULL; //initialize the new row we just made room for to empty
@@ -159,11 +175,11 @@ void addRow(void){ //make a new row of text that is actually visible
       incrementCursor(0,1,0,0); //move cursor down
   }else if(E.Cx-1 != E.rows[E.Cy-1].length && E.Cx-1 != 0){ 
           //cursor not at end of row or beginning of row 
-    createNewRow();
+    appendRow();
     int copy_length = E.rows[E.Cy-1].length - (E.Cx-1); //the length of how much of the string to move to the next row down
     char *copy_buf;
     copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
-    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the last 4 bytes of chars to copy_buf
+    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the current row to copy_buf
     shiftRowsDown(E.Cy-1); //shift all rows down
     printf("%s", copy_buf);
 
@@ -178,17 +194,44 @@ void addRow(void){ //make a new row of text that is actually visible
     //free(copy_buf);
     
   }else if (E.Cx-1 == 0){ //cursor at beginning of row, can be any row
-    createNewRow();
+    appendRow();
     shiftRowsDown(E.Cy-1);
     E.rows[E.Cy-1].chars = NULL; //reset the old row to nothing, this is where this differs from line 288
     E.rows[E.Cy-1].length = 0;
 
     incrementCursor(0,1,0,0); //move cursor down
   }
+  E.Cx = 1; //snap the cursor to the far left of the current row
 }
 
-void removeRow(void){
-  
+void removeRow(int backSpace){
+  //if(E.Cx - 1 == 0 && E.Cy - 1 >= 0){ //check that cursor is at far left of the screen and not on the highest row
+  //  shiftRowsUp(E.Cy-1); //shift all rows up one 
+  //  deleteExistingRow(); 
+  //}
+  if(backSpace){
+    //copy everything in front of the cursor
+    int copy_length = E.rows[E.Cy-1].length - (E.Cx-1); //the length of how much of the string to move to the next row down
+    char *copy_buf;
+    copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
+    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the current row to copy_buf
+    printf("%s", copy_buf);
+
+    //move the cursor up and snap the cursor to the far left of the new row
+    incrementCursor(1,0,0,0); //increment cursor up if moveCursor is 1
+    E.Cx = E.rows[E.Cy-1].length + 1; //snap cursor to the far left of the new row
+
+    //append the contents of copy_buf to the new row
+    E.rows[E.Cy-1].length += copy_length; //increase the length of the new row accordingly
+    E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the new row's memory
+    memcpy(E.rows[E.Cy-1].chars + E.Cx - 1, copy_buf, copy_length); //write copy_buf to the end of the new row
+
+    shiftRowsUp(E.Cy); //shift all rows up one up to the row below the current row
+    deleteExistingRow(); //delete the bottom row
+  } else {
+    shiftRowsUp(E.Cy-1); //shift all rows up one  up to the current row
+    deleteExistingRow(); //delete the bottom row
+  }
 }
 
 /*** Cursor Manipulation Methods ***/
@@ -319,6 +362,8 @@ void sortEscapes(char c){
             if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
                 deletePrintableChar();
             }
+        } else if(E.Cy != E.numrows){ //check that the cursor isn't on the bottom row
+          removeRow(0);
         }
         free(buf); //free memory allocated to buf
     } else { //arrow key was pressed 
@@ -347,7 +392,11 @@ void sortKeypress(char c){
   } else if (ascii_code == 13){ //user pressed enter
     addRow();
   } else if (ascii_code == 127){ //user pressed backspace
-    backspacePrintableChar();
+    if(E.Cx-1 == 0 && E.Cy > 1){ //check if cursor is at far left of screen and not on the highest row
+      removeRow(1);
+    }else{
+      backspacePrintableChar();
+    }
   } else if (ascii_code == 27){ //escape character was pressed, weird functions coming up
     //moveCursor(c); //this function will move the cursor and will need a special 3 character buffer to read the cursor move command
     sortEscapes(c);
