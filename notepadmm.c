@@ -17,6 +17,8 @@
 
 /*** Defines  ***/
 #define CTRL_KEY(k) ((k) & 0x1f) //used to check if ctrl + some character was pressed
+#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
+#define MIN_ROW_CAPACITY 64
 
 /*** Structures ***/
 struct cmd_buf{
@@ -32,6 +34,7 @@ typedef struct row {
    */
   char *chars;
   int length;
+  size_t capacity;
 } row;
 
 struct editor {
@@ -55,9 +58,6 @@ struct editor {
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
 
-/*** Defines ***/
-#define MIN_ROW_CAPACITY 64
-
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
 //they take one of the structs I've defined as parameters so I just didn't want to bother
@@ -71,8 +71,6 @@ void add_cmd(char *cmd, int last_cmd){
   if(cmd != NULL){
     int cmd_len = snprintf(NULL, 0, "%s", cmd);
     if(last_cmd) cmd_len++;
-    //printf("%u;%s\n\r", cmd_len, cmd);
-    // cmd_len = strlen(cmd);
     cbuf.len += cmd_len;
     cbuf.cmds = realloc(cbuf.cmds, cbuf.len); //reallocate cmds to make space for the new command
     if(cbuf.cmds == NULL){ //check if realloc was successful
@@ -145,23 +143,29 @@ void initEditor(void){
 
 /*** Row Manipulation Methods ***/
 void initializeRowMemory(row *r, size_t capacity) {
+    //initialize chars to have MIN_ROW_CAPACITY bytes
     r->chars = malloc(capacity);
+    r->capacity = MIN_ROW_CAPACITY;
     if (r->chars == NULL) {
         // Handle memory allocation failure
         exit(1);
     }
+    //set chars equal to all 0(the null terminator)
     memset(r->chars, 0, capacity);
+    //ensure the first character of chars is null terminator and set length to 0
     r->chars[0] = '\0';
     r->length = 0;
 }
 
 void appendRow(void) {
+    //increate numrows and allocate memory for the new row
     E.numrows++;
     E.rows = realloc(E.rows, sizeof(row) * E.numrows);
     if (E.rows == NULL) {
         // Handle memory allocation failure
         exit(1);
     }
+    //initialize the memory of the newly created row
     initializeRowMemory(&E.rows[E.numrows - 1], MIN_ROW_CAPACITY);
 }
 
@@ -342,50 +346,76 @@ void shiftLineCharsL(int index, row *row){ //shift all characters in a row to th
 }
 
 void addPrintableChar(char c) {
-    row *currentRow = &E.rows[E.Cy-1];
-    if (currentRow->length + 1 >= MIN_ROW_CAPACITY) {
-        size_t new_capacity = currentRow->length + 1;
-        if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-        char *new_chars = realloc(currentRow->chars, new_capacity);
-        if (new_chars == NULL) {
-            // Handle memory allocation failure
-            return;
+    if (E.Cx < E.w.ws_col) {
+        //temporary pointer to the row we're editing
+        row *currentRow = &E.rows[E.Cy-1];
+        
+        //double capacity if needed
+        if (currentRow->length + 2 > currentRow->capacity) {//+2 for new char and null terminator
+            size_t new_capacity = GROW_CAPACITY(currentRow->capacity);
+            //make sure we don't drop below MIN_ROW_CAPACITY
+            if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+            
+            //allocate memory to a new row
+            char *new_chars = realloc(currentRow->chars, new_capacity);
+            if (new_chars == NULL) {
+                // Handle memory allocation failure
+                return;
+            }
+            
+            //initialize newly allocated memory
+            memset(new_chars + currentRow->capacity, 0, new_capacity - currentRow->capacity);
+            
+            //update global editor object's row to new_chars and new_capacity
+            currentRow->chars = new_chars;
+            currentRow->capacity = new_capacity;
         }
-        currentRow->chars = new_chars;
+        
+        //shift characters right to make room for the new one
+        memmove(&currentRow->chars[E.Cx], &currentRow->chars[E.Cx-1], currentRow->length - E.Cx + 1);
+        
+        //insert the new character
+        currentRow->chars[E.Cx-1] = c;
+        //increment row length
+        currentRow->length++;
+
+        //increment cursor to account for the new character     
+        E.Cx++;
     }
-    
-    shiftLineCharsR(E.Cx-1, currentRow);
-    currentRow->chars[E.Cx-1] = c;
-    currentRow->length++;
-    E.Cx++;
 }
 void tabPressed(){
-  E.rows[E.Cy-1].length += 4; //increment the row's length accordingly
-  E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to accomodate the new characters
-
-  for(int i = 0; i < 4; i++){
-    shiftLineCharsR(E.Cx-1, E.rows + E.Cy - 1); //shift all the characters(up to the character BEHIND the cursor) one to the right
-    if(E.Cx <= E.rows[E.Cy-1].length && E.Cy >= 1) E.rows[E.Cy-1].chars[E.Cx-1] = ' '; //set the char of the character BEHIND the cursor to c
-    E.Cx++; //move the cursor one to the right to account for the new character
+  //add a space four times
+  for(int i = 0; i < 1; i++){
+    addPrintableChar(' ');
   }
 }
 
 void backspacePrintableChar(void) {
     if (E.Cx > 1) {
+        //temporary pointer to current row we're editing
         row *currentRow = &E.rows[E.Cy-1];
-        shiftLineCharsL(E.Cx-2, currentRow);
+
+        //shift left all the characters in the row
+        memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
         currentRow->length--;
         
+        //+1 to account for null terminator
         size_t new_capacity = currentRow->length + 1;
+        //make sure we don't drop below MIN_ROW_CAPACITY
         if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
         
+        //reallocate row size
         char *new_chars = realloc(currentRow->chars, new_capacity);
         if (new_chars == NULL) {
-            // Handle memory allocation failure
+            //handle memory allocation failure
             return;
         }
+
+        //assign global editor's row chars to new_chars
         currentRow->chars = new_chars;
+        //delete the last character
         currentRow->chars[currentRow->length] = '\0';
+        //decrement character to account for the new shorter row
         E.Cx--;
     }
 }
