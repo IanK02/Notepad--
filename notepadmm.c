@@ -84,7 +84,6 @@ void add_cmd(char *cmd, int last_cmd){
     }else{
       memcpy(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len);
     }
-    cbuf.cmds[cbuf.len] = '\0';
     //snprintf(cbuf.cmds + cbuf.len - cmd_len, cmd_len, "%s", cmd);
     //write(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len);
   }
@@ -217,7 +216,6 @@ void addRow(void){ //make a new row of text that is actually visible
     E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate current row's memory
 
     incrementCursor(0,1,0,0); //move cursor down
-    //free(copy_buf);
     
   }else if (E.Cx-1 == 0){ //cursor at beginning of row, can be any row
     appendRow();
@@ -359,7 +357,6 @@ void addPrintableChar(char c) {
     shiftLineCharsR(E.Cx-1, currentRow);
     currentRow->chars[E.Cx-1] = c;
     currentRow->length++;
-    currentRow->chars[currentRow->length] = '\0';
     E.Cx++;
 }
 void tabPressed(){
@@ -404,12 +401,12 @@ void deletePrintableChar(void){
 
 /*** User Input Processing ***/
 void sortEscapes(char c){
-    char *buf = malloc(4); //three character buffer to store all three characters of the arrow key commands
-    buf[0] = c;
-    read(STDIN_FILENO, buf + 1, 1); //read next byte of input into buf
-    read(STDIN_FILENO, buf + 2, 1); //read next byte of input into buf
-    if(buf[2] == '3'){ //delete key was pressed
-        read(STDIN_FILENO, buf + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
+    char *buff = malloc(4); //three character buffer to store all three characters of the arrow key commands
+    buff[0] = c;
+    read(STDIN_FILENO, buff + 1, 1); //read next byte of input into buf
+    read(STDIN_FILENO, buff + 2, 1); //read next byte of input into buf
+    if(buff[2] == '3'){ //delete key was pressed
+        read(STDIN_FILENO, buff + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
         if(E.rows[E.Cy-1].length != 0){ //check if the row isn't empty
             int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
             if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
@@ -420,11 +417,11 @@ void sortEscapes(char c){
         }
     } else { //arrow key was pressed 
         //read(STDIN_FILENO, buf + 2, 1); //read one more byte of input into buf
-        moveCursor(c, buf); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
+        moveCursor(c, buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
         //read in the rest of the command buffer, so that's why we use a separate moveCursor function
     }
-    free(buf); //free memory allocated to buf
-    buf = NULL; //set buf back to NULL
+    free(buff); //free memory allocated to buf
+    buff = NULL; //set buf back to NULL
 }
 
 void sortKeypress(char c){
@@ -466,13 +463,18 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     //add_cmd("\x1b[?25l"); //make cursor inivisble
     int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx) + 1;
     char *buf = malloc(buf_size);
+    if(buf == NULL){
+      printf("%s", "Memory allocation failed\n");
+    }
     snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy, E.Cx);
-    write(STDOUT_FILENO, buf, buf_size - 1); //move cursor to location specified by Cx and Cy
+    write(STDOUT_FILENO, buf, buf_size); //move cursor to location specified by Cx and Cy
     write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
     //add_cmd(buf);
     //add_cmd("\x1b[?25h"); //make cursor visible
     //add_cmd(buf);
+
     free(buf);
+
     buf = NULL; //set buf back to NULL
 }
 
