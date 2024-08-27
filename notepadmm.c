@@ -395,7 +395,7 @@ void backspacePrintableChar(void) {
         //temporary pointer to current row we're editing
         row *currentRow = &E.rows[E.Cy-1];
 
-        //shift left all the characters in the row
+        //shift left all the characters up to the cursor in the row
         memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
         currentRow->length--;
         
@@ -422,10 +422,31 @@ void backspacePrintableChar(void) {
 
 void deletePrintableChar(void){
     if(E.Cx > 0){
-        shiftLineCharsL(E.Cx-1, E.rows + E.Cy-1); //shift all the characters(up to the character on the cursor) one to the left
-        E.rows[E.Cy-1].chars[E.rows[E.Cy-1].length - 1] = '\0'; //delete last character in the row
-        E.rows[E.Cy-1].length--; //decrement the row's length
-        E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to be smaller
+        //temporary pointer to current row we're editing
+        row *currentRow = &E.rows[E.Cy-1];
+
+        //shift left all the characters up to the cursor in the row
+        memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
+        currentRow->length--;
+        
+        //+1 to account for null terminator
+        size_t new_capacity = currentRow->length + 1;
+        //make sure we don't drop below MIN_ROW_CAPACITY
+        if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+        
+        //reallocate row size
+        char *new_chars = realloc(currentRow->chars, new_capacity);
+        if (new_chars == NULL) {
+            //handle memory allocation failure
+            return;
+        }
+
+        //assign global editor's row chars to new_chars
+        currentRow->chars = new_chars;
+        //delete the last character
+        currentRow->chars[currentRow->length] = '\0';
+        //DO NOT decrement character to account for the new shorter row
+        //this is how delete is different from backspace
     }
 }
 
