@@ -55,6 +55,8 @@ struct editor {
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
 
+/*** Defines ***/
+#define MIN_ROW_CAPACITY 64
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -62,12 +64,14 @@ struct cmd_buf cbuf; //The global command buffer
 //with defining the struct in the header file
 void shiftLineCharsR(int index, row *row);
 void shiftLineCharsL(int index, row *row);
+void initializeRowMemory(row *r, size_t capacity);
 
 /*** Command Buffer ***/
 void add_cmd(char *cmd, int last_cmd){
   if(cmd != NULL){
     int cmd_len = snprintf(NULL, 0, "%s", cmd);
     if(last_cmd) cmd_len++;
+    //printf("%u;%s\n\r", cmd_len, cmd);
     // cmd_len = strlen(cmd);
     cbuf.len += cmd_len;
     cbuf.cmds = realloc(cbuf.cmds, cbuf.len); //reallocate cmds to make space for the new command
@@ -80,6 +84,7 @@ void add_cmd(char *cmd, int last_cmd){
     }else{
       memcpy(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len);
     }
+    cbuf.cmds[cbuf.len] = '\0';
     //snprintf(cbuf.cmds + cbuf.len - cmd_len, cmd_len, "%s", cmd);
     //write(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len);
   }
@@ -88,7 +93,9 @@ void add_cmd(char *cmd, int last_cmd){
 void writeCmds(void){
   write(STDOUT_FILENO, cbuf.cmds, cbuf.len);
   cbuf.len = 0; //set len back to 0
-  cbuf.cmds = realloc(cbuf.cmds, 0); //reduce cmds back to NULL
+  //cbuf.cmds = NULL; //reduce cmds back to NULL
+  free(cbuf.cmds);
+  cbuf.cmds = NULL; //set cmds back to NULL
 }
 
 /*** Editor Initialization ***/
@@ -120,7 +127,8 @@ void exitRawMode(void){
 
 void initEditor(void){
   //initialize the global editor object's values as well as clear screen and set cursor at starting position
-  //E.rows = NULL; //initialize rows to null as no text is present yet
+  E.rows = NULL; //initialize rows to null as no text is present yet
+  E.numrows = 0;
   appendRow(); //we create the first row, it has no chars, E.numrows doesn't need to be initialized anymore
   E.Cx = 1; //initialize cursor position to (1,1) which is the top left of the screen
   E.Cy = 1;
@@ -137,16 +145,25 @@ void initEditor(void){
 }
 
 /*** Row Manipulation Methods ***/
-void appendRow(void){ //append a new row of text to the global editor object's dynamic array of rows
-  E.numrows++; //increment number of rows
+void initializeRowMemory(row *r, size_t capacity) {
+    r->chars = malloc(capacity);
+    if (r->chars == NULL) {
+        // Handle memory allocation failure
+        exit(1);
+    }
+    memset(r->chars, 0, capacity);
+    r->chars[0] = '\0';
+    r->length = 0;
+}
 
-  E.rows = realloc(E.rows, sizeof(row) * E.numrows); //reallocate the memory of rows to accomodate for the new row
-  if (E.rows == NULL) {
-      printf("Memory allocation failed\n");
-      exit(1);
-  }
-  E.rows[E.numrows - 1].chars = NULL; //initialize the new row's chars to NULL and length to 0
-  E.rows[E.numrows - 1].length = 0;
+void appendRow(void) {
+    E.numrows++;
+    E.rows = realloc(E.rows, sizeof(row) * E.numrows);
+    if (E.rows == NULL) {
+        // Handle memory allocation failure
+        exit(1);
+    }
+    initializeRowMemory(&E.rows[E.numrows - 1], MIN_ROW_CAPACITY);
 }
 
 void deleteExistingRow(void){
@@ -326,16 +343,25 @@ void shiftLineCharsL(int index, row *row){ //shift all characters in a row to th
     }
 }
 
-void addPrintableChar(char c){
-  E.rows[E.Cy-1].length++;//increment the row's length
-  E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to accomodate the new character
-  
-  shiftLineCharsR(E.Cx-1, E.rows + E.Cy - 1); //shift all the characters(up to the character BEHIND the cursor) one to the right
-  if(E.Cx <= E.rows[E.Cy-1].length && E.Cy >= 1) E.rows[E.Cy-1].chars[E.Cx-1] = c; //set the char of the character BEHIND the cursor to c
-
-  E.Cx++; //move the cursor one to the right to account for the new character
+void addPrintableChar(char c) {
+    row *currentRow = &E.rows[E.Cy-1];
+    if (currentRow->length + 1 >= MIN_ROW_CAPACITY) {
+        size_t new_capacity = currentRow->length + 1;
+        if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+        char *new_chars = realloc(currentRow->chars, new_capacity);
+        if (new_chars == NULL) {
+            // Handle memory allocation failure
+            return;
+        }
+        currentRow->chars = new_chars;
+    }
+    
+    shiftLineCharsR(E.Cx-1, currentRow);
+    currentRow->chars[E.Cx-1] = c;
+    currentRow->length++;
+    currentRow->chars[currentRow->length] = '\0';
+    E.Cx++;
 }
-
 void tabPressed(){
   E.rows[E.Cy-1].length += 4; //increment the row's length accordingly
   E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to accomodate the new characters
@@ -347,13 +373,23 @@ void tabPressed(){
   }
 }
 
-void backspacePrintableChar(void){
-    if(E.Cx > 1){
-        shiftLineCharsL(E.Cx-2, E.rows + E.Cy - 1); //shift all the characters(up to the character BEHIND the cursor) one to the left
-        E.rows[E.Cy-1].chars[E.rows[E.Cy-1].length - 1] = '\0'; //delete last character in the row
-        E.rows[E.Cy-1].length--; //decrement the row's length
-        E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the memory of the row to be smaller
-        E.Cx--; //move the cursor one space left
+void backspacePrintableChar(void) {
+    if (E.Cx > 1) {
+        row *currentRow = &E.rows[E.Cy-1];
+        shiftLineCharsL(E.Cx-2, currentRow);
+        currentRow->length--;
+        
+        size_t new_capacity = currentRow->length + 1;
+        if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+        
+        char *new_chars = realloc(currentRow->chars, new_capacity);
+        if (new_chars == NULL) {
+            // Handle memory allocation failure
+            return;
+        }
+        currentRow->chars = new_chars;
+        currentRow->chars[currentRow->length] = '\0';
+        E.Cx--;
     }
 }
 
@@ -374,7 +410,7 @@ void sortEscapes(char c){
     read(STDIN_FILENO, buf + 2, 1); //read next byte of input into buf
     if(buf[2] == '3'){ //delete key was pressed
         read(STDIN_FILENO, buf + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
-        if(E.rows[E.Cy-1].chars != NULL){ //check if the row isn't empty
+        if(E.rows[E.Cy-1].length != 0){ //check if the row isn't empty
             int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
             if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
                 deletePrintableChar();
@@ -388,6 +424,7 @@ void sortEscapes(char c){
         //read in the rest of the command buffer, so that's why we use a separate moveCursor function
     }
     free(buf); //free memory allocated to buf
+    buf = NULL; //set buf back to NULL
 }
 
 void sortKeypress(char c){
@@ -436,6 +473,7 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     //add_cmd("\x1b[?25h"); //make cursor visible
     //add_cmd(buf);
     free(buf);
+    buf = NULL; //set buf back to NULL
 }
 
 char processKeypress(void){
@@ -460,21 +498,25 @@ void writeScreen(void){
   /***
    * This will write each row within the global editor object's dynamic arrow of rows to the screen
    */
-  for(int i = 0; i < E.numrows - 1; i++){
+  for(int i = 0; i < E.numrows; i++){
     //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
-    add_cmd(E.rows[i].chars, 0);
     //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
+    if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
     add_cmd("\r\n", 0);
   }
-  add_cmd(E.rows[E.numrows - 1].chars, 0);
-  add_cmd("\r\n", 1);
+  //add_cmd("\r\n", 0);
+  //printf("%s", cbuf.cmds);
   writeCmds();
+
+  //printing for debugging purposes
+  //for(int i = 0; i < E.numrows; i++){
+  //  printf("%s\n\r", E.rows[i]);
+  //}
   
   cursor_move_cmd(); //move cursor to current cursor position(visible change)
 }
 
 /*** Main Loop ***/
-
 int main(void){
   enableRawMode();
   initEditor();
