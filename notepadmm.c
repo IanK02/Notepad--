@@ -384,9 +384,15 @@ void addPrintableChar(char c) {
     }
 }
 void tabPressed(){
-  //add a space four times
-  for(int i = 0; i < 1; i++){
-    addPrintableChar(' ');
+  //add a space four times or less if we don't have the space
+  if(E.w.ws_col - E.Cx > 3){
+    for(int i = 0; i < 4; i++){
+      addPrintableChar(' ');
+    }
+  } else {
+    for(int i = 0; i < E.w.ws_col - E.Cx; i++){
+      addPrintableChar(' ');
+    }
   }
 }
 
@@ -404,15 +410,18 @@ void backspacePrintableChar(void) {
         //make sure we don't drop below MIN_ROW_CAPACITY
         if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
         
+        /*** These Lines were the cause of lots of problems, do not reallocate to make a smaller row, it's not worth the trouble***/
         //reallocate row size
-        char *new_chars = realloc(currentRow->chars, new_capacity);
-        if (new_chars == NULL) {
-            //handle memory allocation failure
-            return;
-        }
+        //char *new_chars = realloc(currentRow->chars, new_capacity);
+        //if (new_chars == NULL) {
+        //    //handle memory allocation failure
+        //    return;
+        //}
 
         //assign global editor's row chars to new_chars
-        currentRow->chars = new_chars;
+        //currentRow->chars = new_chars;
+        //---------------------------------------------------------------------------------------
+        
         //delete the last character
         currentRow->chars[currentRow->length] = '\0';
         //decrement character to account for the new shorter row
@@ -524,7 +533,10 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     //add_cmd("\x1b[?25h"); //make cursor visible
     //add_cmd(buf);
 
-    free(buf);
+    if (buf != NULL) { //null check before freeing
+      free(buf);
+      buf = NULL;
+    }
 
     buf = NULL; //set buf back to NULL
 }
