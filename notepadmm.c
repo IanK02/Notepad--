@@ -383,14 +383,14 @@ void addPrintableChar(char c) {
         E.Cx++;
     }
 }
-void tabPressed(){
+void tabPressed(){ //add checking if tab will push text further past row limit
   //add a space four times or less if we don't have the space
-  if(E.w.ws_col - E.Cx > 3){
+  if((E.rows[E.Cy-1].length + 4 < E.w.ws_col)){
     for(int i = 0; i < 4; i++){
       addPrintableChar(' ');
     }
-  } else {
-    for(int i = 0; i < E.w.ws_col - E.Cx; i++){
+  } else if(E.rows[E.Cy-1].length < E.w.ws_col){
+    for(int i = 0; i < E.w.ws_col - E.rows[E.Cy-1].length - 1; i++){
       addPrintableChar(' ');
     }
   }
