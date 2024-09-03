@@ -142,6 +142,31 @@ void initEditor(void){
 }
 
 /*** Row Manipulation Methods ***/
+row duplicate_row(const row *original) {
+    // Initialize a new row
+    row new_row;
+
+    new_row.chars = malloc(original->capacity * sizeof(char));
+    if (new_row.chars == NULL) {
+        // Handle memory allocation failure
+        new_row.length = 0;
+        new_row.capacity = 0;
+        return new_row;
+    }
+
+    //copy original's chars to new_row's chars
+    memcpy(new_row.chars, original->chars, original->length + 1);//+1 for null terminator
+
+    //ensure new_row chars is null terminated
+    new_row.chars[original->length] = '\0';
+
+    // Copy other properties
+    new_row.length = original->length;
+    new_row.capacity = original->capacity;
+
+    return new_row;
+}
+
 void initializeRowMemory(row *r, size_t capacity) {
     //initialize chars to have MIN_ROW_CAPACITY bytes
     r->chars = malloc(capacity);
@@ -180,51 +205,130 @@ void deleteExistingRow(void){
 }
 
 void shiftRowsDown(int index){ //shift all rows up to index down 1
-  for(int i = E.numrows - 1; i > index; i--){
+  for(int i = E.numrows - 1; i > index + 1; i--){
     E.rows[i] = E.rows[i-1];
   }
+
+  if(E.rows[index+1].capacity < E.rows[index].capacity){
+    E.rows[index+1].chars = realloc(E.rows[index+1].chars, E.rows[index].capacity);
+    E.rows[index+1].capacity = E.rows[index].capacity;
+  } 
+
+  row dup_row = duplicate_row(&E.rows[index]);
+
+  E.rows[index+1] = dup_row;
+  //memcpy(E.rows[index+1].chars, E.rows[index].chars, E.rows[index].length + 1);
+  //E.rows[index+1].length = E.rows[index].length;
+  //char *copybuf;
+  //copybuf = malloc(E.rows[index].capacity); //create a buffer to copy the chars of row at index
+  //to copyrow, this way the row at index and the row below index don't both
+  //point to the same block of memory
+
+  //memcpy(copybuf, E.rows[index].chars, E.rows[index].length + 1); //+1 for null terminator
+  //copybuf[E.rows[index].length] = '\0'; //ensure copybuf is null terminated
+  
+  //free(E.rows[index+1].chars); //free the old chars of rows[index+1]
+  //E.rows[index+1].chars = copybuf; //set the chars of copyrow to copybuf
+  //E.rows[index+1].capacity = E.rows[index].capacity; //set capacity of copyrow to row above
+  //E.rows[index+1].length = E.rows[index].length; //set length of copyrow to row above
+
+  //E.rows[index+1] = copyrow; //set row at index + 1 to copyrow
+
+  //free(E.rows[index+1].chars); //free the old chars of rows[index+1]
+  //free(copybuf); //free copybuf
 }
 
 void shiftRowsUp(int index){
-  for(int i = index; i < E.numrows - 1; i++){
+  for(int i = index; i < E.numrows - 2; i++){
     E.rows[i] = E.rows[i+1];
   }
+
+  int lowrow = E.numrows - 1;
+
+  if((E.numrows - index) > 2){
+    if(E.rows[lowrow-1].capacity < E.rows[lowrow].capacity){
+      E.rows[lowrow-1].chars = realloc(E.rows[lowrow-1].chars, E.rows[lowrow].capacity);
+      E.rows[lowrow-1].capacity = E.rows[lowrow].capacity;
+    }
+
+    memcpy(E.rows[lowrow-1].chars, E.rows[lowrow].chars, E.rows[lowrow].length + 1);
+    E.rows[lowrow-1].length = E.rows[lowrow].length;
+  }
+
+  //char *copybuf;
+  //copybuf = malloc(E.rows[lowrow-1].capacity); //create a buffer to copy the chars of row at index
+  //to copyrow, this way the row at index and the row below index don't both
+  //point to the same block of memory
+
+  //memcpy(copybuf, E.rows[lowrow-1].chars, E.rows[lowrow-1].length + 1); //+1 for null terminator
+  //copybuf[E.rows[lowrow-1].length] = '\0'; //ensure copybuf is null terminated
+  
+  //free(E.rows[lowrow].chars); //free the old chars of rows[lowrow]
+  //E.rows[lowrow].chars = copybuf; //set the chars of copyrow to copybuf
+  //E.rows[lowrow].capacity = E.rows[lowrow-1].capacity; //set capacity of copyrow to row above
+  //E.rows[lowrow].length = E.rows[lowrow-1].length; //set length of copyrow to row above
 }
 
 void addRow(void){ //make a new row of text that is actually visible
   if(E.Cx-1 == E.rows[E.Cy-1].length && E.Cy == E.numrows){ //check if cursor is at the end of the row it's on and if current row is 
-      appendRow();                                       //the bottom row
+      appendRow();                                          //the bottom row
       incrementCursor(0,1,0,0); //move cursor down
   }else if (E.Cx-1 == E.rows[E.Cy-1].length){ //cursor at end of row but not on bottom row
       appendRow();
       shiftRowsDown(E.Cy-1);
 
-      E.rows[E.Cy].chars = NULL; //initialize the new row we just made room for to empty
+      //E.rows[E.Cy].chars[0] = '\0'; //initialize row below current row to empty
+      memset(E.rows[E.Cy].chars, 0, E.rows[E.Cy].capacity);
+      E.rows[E.Cy].chars[0] = '\0';
       E.rows[E.Cy].length = 0;
+
 
       incrementCursor(0,1,0,0); //move cursor down
   }else if(E.Cx-1 != E.rows[E.Cy-1].length && E.Cx-1 != 0){ 
           //cursor not at end of row or beginning of row 
     appendRow();
-    int copy_length = E.rows[E.Cy-1].length - (E.Cx-1); //the length of how much of the string to move to the next row down
-    char *copy_buf;
-    copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
-    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the current row to copy_buf
-    shiftRowsDown(E.Cy-1); //shift all rows down
 
-    E.rows[E.Cy].chars = copy_buf; //copy copy_buf to the row above current row
-    E.rows[E.Cy].length = copy_length;
+    int copy_length = E.rows[E.Cy-1].length - (E.Cx-1) + 1; //the length of how much of the string to move to the next row down
+    //if(E.rows[E.Cy].length + copy_length + 1 > E.rows[E.Cy].capacity){
+    //  E.rows[E.Cy].chars = realloc(E.rows[E.Cy].chars, E.rows[E.Cy].capacity + copy_length + 1);
+    //  E.rows[E.Cy].capacity += copy_length + 1;
+    //}
 
+    shiftRowsDown(E.Cy-1);
+
+    memset(E.rows[E.Cy].chars, 0, E.rows[E.Cy].capacity);
+    E.rows[E.Cy].chars[0] = '\0';
+    E.rows[E.Cy].length = 0;
+
+    memcpy(E.rows[E.Cy].chars, E.rows[E.Cy-1].chars + E.Cx - 1, copy_length);
+    E.rows[E.Cy].length = copy_length - 1;
+    //char *copy_buf;
+    //copy_buf = malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
+
+    //memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length+1, copy_length-1); 
+    //copy everything after the cursor to copy_buf
+    
+    //copy_buf[copy_length-1]='\0'; //ensure copy_buf is null terminated
+    //shiftRowsDown(E.Cy-1); //shift all rows down
+
+    //free(E.rows[E.Cy].chars); //free old chars of E.Cy row
+    //E.rows[E.Cy].chars = copy_buf; //set row below current row to copy_buf
+    //memmove(E.rows[E.Cy].chars, copy_buf, copy_length);
+    //E.rows[E.Cy].length = copy_length-1;
+    
     E.rows[E.Cy-1].chars[E.Cx-1] = '\0'; //cut off the current row at cursor position
-    E.rows[E.Cy-1].length = E.rows[E.Cy-1].length - copy_length; //decrement the current row's length
-    E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate current row's memory
+    E.rows[E.Cy-1].length = E.Cx-1; //decrement the current row's length
+    //E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate current row's memory
 
     incrementCursor(0,1,0,0); //move cursor down
     
   }else if (E.Cx-1 == 0){ //cursor at beginning of row, can be any row
     appendRow();
     shiftRowsDown(E.Cy-1);
-    E.rows[E.Cy-1].chars = NULL; //reset the old row to nothing, this is where this differs from line 288
+
+    //reset current row to empty
+    memset(E.rows[E.Cy-1].chars, 0, E.rows[E.Cy-1].capacity);
+    E.rows[E.Cy-1].chars[0] = '\0';
     E.rows[E.Cy-1].length = 0;
 
     incrementCursor(0,1,0,0); //move cursor down
@@ -239,24 +343,36 @@ void removeRow(int backSpace){
   //}
   if(backSpace){
     //copy everything in front of the cursor
-    int copy_length = E.rows[E.Cy-1].length - (E.Cx-1); //the length of how much of the string to move to the next row down
-    char *copy_buf;
-    copy_buf = (char *)malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
-    memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length, copy_length); //write the current row to copy_buf
+    //int copy_length = E.rows[E.Cy-1].length + 1; //+1 for null terminator
+    //char *copy_buf;
+    //copy_buf = malloc(E.rows[E.Cy-1].capacity); //allocate enough bytes for a buffer to store the part of the row to move
+    //memcpy(copy_buf, E.rows[E.Cy-1].chars, copy_length); //write the current row to copy_buf
+    //copy_buf[copy_length-1] = '\0'; //ensure copy_buf is null terminated
 
-    //move the cursor up and snap the cursor to the far left of the new row
-    incrementCursor(1,0,0,0); //increment cursor up if moveCursor is 1
-    E.Cx = E.rows[E.Cy-1].length + 1; //snap cursor to the far left of the new row
+    if(E.rows[E.Cy-2].length != 0){
+      E.Cx = E.rows[E.Cy-2].length + E.rows[E.Cy-1].length + 1; //snap cursor to the far right of the new row 
+    }
 
-    //append the contents of copy_buf to the new row
-    E.rows[E.Cy-1].length += copy_length; //increase the length of the new row accordingly
-    E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate the new row's memory
-    memcpy(E.rows[E.Cy-1].chars + E.Cx - 1, copy_buf, copy_length); //write copy_buf to the end of the new row
+    if(E.rows[E.Cy-2].length + E.rows[E.Cy-1].length + 1 >= E.rows[E.Cy-2].capacity){
+      E.rows[E.Cy-2].chars = realloc(E.rows[E.Cy-2].chars, E.rows[E.Cy-2].capacity + E.rows[E.Cy-1].length + 1);
+      E.rows[E.Cy-2].capacity += E.rows[E.Cy-1].length + 1;
+    }
 
+    memcpy(E.rows[E.Cy-2].chars + E.rows[E.Cy-2].length, E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length + 1);
+    E.rows[E.Cy-2].length += E.rows[E.Cy-1].length;
+
+    memset(E.rows[E.Cy-1].chars, 0, E.rows[E.Cy-1].capacity);
+    E.rows[E.Cy-1].chars[0] = '\0';
+    E.rows[E.Cy-1].length = 0;
+    
+    incrementCursor(1,0,0,0); //increment cursor up
+    //memcpy(E.rows[E.Cy-1].chars + E.Cx - 1, copy_buf, copy_length); //write copy_buf to the end of the new row
     shiftRowsUp(E.Cy); //shift all rows up one up to the row below the current row
+
     deleteExistingRow(); //delete the bottom row
+
   } else {
-    shiftRowsUp(E.Cy-1); //shift all rows up one  up to the current row
+    shiftRowsUp(E.Cy-1); //shift all rows up one up to the current row
     deleteExistingRow(); //delete the bottom row
   }
 }
@@ -379,6 +495,7 @@ void addPrintableChar(char c) {
         //increment row length
         currentRow->length++;
 
+        currentRow->chars[currentRow->length] = '\0'; //ensure row is always null terminated
         //increment cursor to account for the new character     
         E.Cx++;
     }
