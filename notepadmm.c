@@ -209,13 +209,14 @@ void shiftRowsDown(int index){ //shift all rows up to index down 1
     E.rows[i] = E.rows[i-1];
   }
 
-  if(E.rows[index+1].capacity < E.rows[index].capacity){
-    E.rows[index+1].chars = realloc(E.rows[index+1].chars, E.rows[index].capacity);
-    E.rows[index+1].capacity = E.rows[index].capacity;
-  } 
+  //if(E.rows[index+1].capacity < E.rows[index].capacity){
+  //  E.rows[index+1].chars = realloc(E.rows[index+1].chars, E.rows[index].capacity);
+  //  E.rows[index+1].capacity = E.rows[index].capacity;
+  //} 
 
   row dup_row = duplicate_row(&E.rows[index]);
 
+  //free(E.rows[index+1].chars);
   E.rows[index+1] = dup_row;
   //memcpy(E.rows[index+1].chars, E.rows[index].chars, E.rows[index].length + 1);
   //E.rows[index+1].length = E.rows[index].length;
@@ -245,14 +246,17 @@ void shiftRowsUp(int index){
 
   int lowrow = E.numrows - 1;
 
-  if((E.numrows - index) > 2){
-    if(E.rows[lowrow-1].capacity < E.rows[lowrow].capacity){
-      E.rows[lowrow-1].chars = realloc(E.rows[lowrow-1].chars, E.rows[lowrow].capacity);
-      E.rows[lowrow-1].capacity = E.rows[lowrow].capacity;
-    }
+  if((E.numrows - index) > 1){
+    //if(E.rows[lowrow-1].capacity < E.rows[lowrow].capacity){
+    //  E.rows[lowrow-1].chars = realloc(E.rows[lowrow-1].chars, E.rows[lowrow].capacity);
+    //  E.rows[lowrow-1].capacity = E.rows[lowrow].capacity;
+    //}
+    row dup_row = duplicate_row(&E.rows[lowrow]);
 
-    memcpy(E.rows[lowrow-1].chars, E.rows[lowrow].chars, E.rows[lowrow].length + 1);
-    E.rows[lowrow-1].length = E.rows[lowrow].length;
+    //free(E.rows[lowrow-1].chars);
+    E.rows[lowrow-1] = dup_row;
+    //memcpy(E.rows[lowrow-1].chars, E.rows[lowrow].chars, E.rows[lowrow].length + 1);
+    //E.rows[lowrow-1].length = E.rows[lowrow].length;
   }
 
   //char *copybuf;
@@ -350,7 +354,7 @@ void removeRow(int backSpace){
     //copy_buf[copy_length-1] = '\0'; //ensure copy_buf is null terminated
 
     if(E.rows[E.Cy-2].length != 0){
-      E.Cx = E.rows[E.Cy-2].length + E.rows[E.Cy-1].length + 1; //snap cursor to the far right of the new row 
+      E.Cx = E.rows[E.Cy-2].length; //snap cursor to the far right of the new row 
     }
 
     if(E.rows[E.Cy-2].length + E.rows[E.Cy-1].length + 1 >= E.rows[E.Cy-2].capacity){
@@ -561,14 +565,14 @@ void deletePrintableChar(void){
         if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
         
         //reallocate row size
-        char *new_chars = realloc(currentRow->chars, new_capacity);
-        if (new_chars == NULL) {
-            //handle memory allocation failure
-            return;
-        }
+        //char *new_chars = realloc(currentRow->chars, new_capacity);
+        //if (new_chars == NULL) {
+        //    //handle memory allocation failure
+        //    return;
+        //}
 
         //assign global editor's row chars to new_chars
-        currentRow->chars = new_chars;
+        //currentRow->chars = new_chars;
         //delete the last character
         currentRow->chars[currentRow->length] = '\0';
         //DO NOT decrement character to account for the new shorter row
