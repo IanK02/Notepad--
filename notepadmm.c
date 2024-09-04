@@ -90,6 +90,8 @@ void add_cmd(char *cmd, int last_cmd){
 }
 
 void writeCmds(void){
+  //cbuf.cmds = realloc(cbuf.cmds, cbuf.len + 1);
+  //cbuf.cmds[cbuf.len] = '\0'; //ensure cbuf is null terminated
   write(STDOUT_FILENO, cbuf.cmds, cbuf.len);
   //char *start = cbuf.cmds;
   //char *end;
@@ -765,6 +767,9 @@ void writeScreen(void){
   //}
   cursor_move_cmd(); //move cursor to current cursor position(visible change)
 }
+
+/*** File IO ***/
+
 
 /*** Main Loop ***/
 int main(void){
