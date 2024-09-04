@@ -739,7 +739,7 @@ void writeScreen(void){
   /***
    * This will write each row within the global editor object's dynamic arrow of rows to the screen
    */
-  if(E.numrows < E.w.ws_row){
+  if(E.numrows - E.scroll < E.w.ws_row){
     for(int i = E.scroll; i < E.numrows - 1; i++){
       //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
       //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
@@ -754,9 +754,10 @@ void writeScreen(void){
       if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       add_cmd("\r\n", 0);
     }
-    if(E.numrows-E.scroll >= E.w.ws_row){
-      add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
-    }
+    //if(E.numrows-E.scroll >= E.w.ws_row){
+    //  add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
+    //}
+    add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
   }
   //add_cmd("\r\n", 0);
   //printf("%s", cbuf.cmds);
