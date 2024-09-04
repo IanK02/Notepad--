@@ -218,10 +218,10 @@ void appendRow(void) {
 }
 
 void deleteExistingRow(void){
-  free(E.rows[E.numrows-1].chars); //free the chars of the bottom row
-
+  if(E.rows[E.numrows-1].chars != NULL) free(E.rows[E.numrows-1].chars); //free the chars of the bottom row
+  //free(&E.rows[E.numrows-1]);
   E.numrows--; //decrement number of rows
-  E.rows = realloc(E.rows, sizeof(row) * E.numrows); //reallocate the memory of rows to accomodate the new array size
+  //E.rows = realloc(E.rows, sizeof(row) * E.numrows); //reallocate the memory of rows to accomodate the new array size
   if (E.rows == NULL) { //check if reallocation was successful
       printf("Memory allocation failed\n");
       exit(1);
@@ -265,8 +265,8 @@ void shiftRowsDown(int index){ //shift all rows up to index down 1
 }
 
 void shiftRowsUp(int index){
-  free(E.rows[index].chars);
-  for(int i = index; i < E.numrows - 2; i++){
+
+  for(int i = index; i < E.numrows - 1; i++){
     E.rows[i] = E.rows[i+1];
   }
 
@@ -742,9 +742,9 @@ void writeScreen(void){
       //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
       //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
       if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
-     add_cmd("\r\n", 0);
+      add_cmd("\r\n", 0);
     }
-    if(E.rows[E.numrows-1].capacity != 0) add_cmd(E.rows[E.numrows-1].chars, 0);
+    if(E.rows[E.numrows-1].chars != NULL) add_cmd(E.rows[E.numrows-1].chars, 0);
   } else {
     for(int i = E.scroll; i < E.scroll + E.w.ws_row - 1; i++){
       //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
@@ -752,7 +752,7 @@ void writeScreen(void){
       if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       add_cmd("\r\n", 0);
     }
-    if(E.rows[E.scroll + E.w.ws_row - 1].capacity != 0) add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
+    if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
   }
   //add_cmd("\r\n", 0);
   //printf("%s", cbuf.cmds);
