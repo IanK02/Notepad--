@@ -22,5 +22,6 @@ char processKeypress(void);
 void clearScreen(void);
 void writeScreen(void);
 void removeRow(int);
+void free_all_rows(void);
 
 #endif 
