@@ -19,6 +19,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f) //used to check if ctrl + some character was pressed
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 #define MIN_ROW_CAPACITY 64
+#define MAX_LINE_LENGTH 1000
 
 /*** Structures ***/
 struct cmd_buf{
@@ -67,6 +68,7 @@ void shiftLineCharsR(int index, row *row);
 void shiftLineCharsL(int index, row *row);
 void initializeRowMemory(row *r, size_t capacity);
 row duplicate_row(const row *original_row);
+void setChars(row *row, char *chars, int strlen);
 
 /*** Command Buffer ***/
 void add_cmd(char *cmd, int last_cmd){
@@ -167,6 +169,23 @@ void free_all_rows(void){ //free all the text contained in the global editor E
 }
 
 /*** Row Manipulation Methods ***/
+void setChars(row *row, char *chars, int strlen){
+  //strlen should NOT include the null terminator
+  if(row->capacity <= strlen){//reallocate row's capacity if needed
+    row->chars = realloc(row->chars, strlen+1); //+1 for null terminator
+    row->capacity = strlen + 1;
+  }
+
+  free(row->chars); //free row's chars before reassignment
+
+  char *new_chars = malloc(row->capacity); //make a new_chars to copy chars to row
+  memcpy(new_chars, chars, strlen + 1);//+1 for null terminator
+  row->chars = new_chars;
+
+  row->length = strlen;
+  row->chars[strlen] = '\0'; //make sure chars is null terminated
+} 
+
 row duplicate_row(const row *original) {
     // Initialize a new row
     row new_row;
@@ -723,7 +742,7 @@ char processKeypress(void){
     if(c == CTRL_KEY('c')){ //used to check if key pressed was CTRL-C which is the key to close the editor
         write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
         write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
-        free_all_rows();
+        //free_all_rows();
         exit(0);
     }
   return c;
@@ -769,13 +788,86 @@ void writeScreen(void){
 }
 
 /*** File IO ***/
+void readFile(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
 
+    char *line = NULL; //pointer to hold the line read
+    size_t len = 0;   //size of the buffer
+    ssize_t read;      //number of characters read
+    if((read = getline(&line, &len, file)) != -1){//do a getline call once without appendRow since a row is appended during initEditor()
+      setChars(E.rows, line, read-1);//-1 to exclude the \n because writeScreen will add it
+      //write(STDOUT_FILENO, line, len+1);
+    }
+
+    while ((read = getline(&line, &len, file)) != -1) {
+        appendRow(); //add a new row
+        setChars(&E.rows[E.numrows-1], line, read-1); //-1 to exclude the \n because writeScreen will add it
+        //write(STDOUT_FILENO, line, len+1);
+        //printf("%s", line);
+    }
+    setChars(&E.rows[E.numrows-1], line, E.rows[E.numrows-1].length + 1); //add on the last character of the file
+
+    free(line);
+    fclose(file); 
+}
+
+void basicRead(const char *filename){
+  FILE *file = fopen(filename, "rb");
+  char line[MAX_LINE_LENGTH];
+
+  if (file == NULL) {
+      printf("Error opening file!\n");
+      return;
+  }
+
+  while(fgets(line, sizeof(line), file)){
+    char *rpos = strchr(line, '\r');
+    if(rpos != NULL){
+      int pos = rpos - line;
+      write(STDOUT_FILENO, "HI", 3);
+      printf("Found \\r at pos %d", pos);
+    }
+    printf("%s", line);
+  }
+  fclose(file);
+}
+
+void manualRead(const char *filename) {
+    FILE *fptr;
+    fptr = fopen(filename, "rb");
+    if (fptr == NULL) {
+        printf("Error opening file!\n");
+        return;
+    }
+    
+    int c;
+    int esc = '\r';
+    while ((c = fgetc(fptr)) != EOF) {
+        write(STDOUT_FILENO, &c, 1);
+        if(c == 10){
+          write(STDOUT_FILENO, &esc, 1);
+        }
+    }
+    
+    fclose(fptr);
+}
 
 /*** Main Loop ***/
-int main(void){
+int main(int argc, char *argv[]){
   enableRawMode();
   initEditor();
+  if(argc == 2){
+    const char *filename = argv[1];
+    readFile(filename);
+    clearScreen();
+    writeScreen();
+  }
   while(1){ //replace with 1 when developing
+    //readFile("okapi.txt");  for debug purposes only
     char c = processKeypress();
     sortKeypress(c);
     clearScreen();

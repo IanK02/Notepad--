@@ -23,6 +23,7 @@ void clearScreen(void);
 void writeScreen(void);
 void removeRow(int);
 void free_all_rows(void);
-void readFile(char *);
+void readFile(const char *);
+void basicRead(const char *);
 
 #endif 
