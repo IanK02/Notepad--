@@ -267,7 +267,7 @@ void shiftRowsDown(int index){ //shift all rows up to index down 1
 }
 
 void shiftRowsUp(int index){
-
+  if(index < E.numrows-1) free(E.rows[index].chars);
   for(int i = index; i < E.numrows - 1; i++){
     E.rows[i] = E.rows[i+1];
   }
@@ -702,7 +702,7 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
       printf("%s", "Memory allocation failed\n");
     }
     snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy-E.scroll, E.Cx);
-    write(STDOUT_FILENO, buf, buf_size); //move cursor to location specified by Cx and Cy
+    write(STDOUT_FILENO, buf, buf_size-1); //move cursor to location specified by Cx and Cy
     //add_cmd(buf, 0);
     write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
     //add_cmd("\x1b[?25h"); //make cursor visible
@@ -710,7 +710,6 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
 
     if (buf != NULL) { //null check before freeing
       free(buf);
-      buf = NULL;
     }
 
     buf = NULL; //set buf back to NULL
