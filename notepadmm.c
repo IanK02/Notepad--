@@ -20,6 +20,7 @@
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 #define MIN_ROW_CAPACITY 64
 #define MAX_LINE_LENGTH 1000
+#define MAX_FILENAME 100
 
 /*** Structures ***/
 struct cmd_buf{
@@ -59,6 +60,7 @@ struct editor {
 /*** Global Variables ***/
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
+//FILE *current_file;
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -150,6 +152,7 @@ void initEditor(void){
   //E.numrows = 0; //initialize numrows to 0 as no rows of text are present yet
   //we don't have to initialize termios_o as enableRawMode takes care of setting its attributes
   getWinSize(); //this call to get winsize takes cares of initializing winsize w to have the correct values
+  E.w.ws_row--; //we decrement row by 1 to leave room for the status message bar
 
   write(STDOUT_FILENO, "\x1b[2J", 4); //clear the screen
   write(STDOUT_FILENO, "\x1b[H", 3); //actually move the cursor to the top left of the screen
@@ -453,7 +456,7 @@ void incrementCursor(int up, int down, int left, int right){
             }
         }
     } else if(!up && down && !left && !right){ //down arrow
-        if(E.Cy <= E.scroll + E.w.ws_row){
+        if(E.Cy <= E.scroll + E.w.ws_row){ 
           E.Cy++; //only increment C.y if y is < rows limit, the row limit is positive and represents the lowest row of the screen
           //keep moving the cursor left until it hits a printable character or 
           //beginning of the row
@@ -706,6 +709,8 @@ void sortKeypress(char c){
     sortEscapes(c);
   } else if (ascii_code == 9){ //tab was pressed
     tabPressed();
+  } else if (c == CTRL_KEY('s')){
+    saveFile();
   } else { //one of the unmapped keys was pressed so just do nothing
     return;
   }
@@ -789,8 +794,9 @@ void writeScreen(void){
 
 /*** File IO ***/
 void readFile(const char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
+    FILE *current_file;
+    current_file = fopen(filename, "r");
+    if (current_file == NULL) {
         perror("Error opening file");
         return;
     }
@@ -798,12 +804,12 @@ void readFile(const char *filename) {
     char *line = NULL; //pointer to hold the line read
     size_t len = 0;   //size of the buffer
     ssize_t read;      //number of characters read
-    if((read = getline(&line, &len, file)) != -1){//do a getline call once without appendRow since a row is appended during initEditor()
+    if((read = getline(&line, &len, current_file)) != -1){//do a getline call once without appendRow since a row is appended during initEditor()
       setChars(E.rows, line, read-1);//-1 to exclude the \n because writeScreen will add it
       //write(STDOUT_FILENO, line, len+1);
     }
 
-    while ((read = getline(&line, &len, file)) != -1) {
+    while ((read = getline(&line, &len, current_file)) != -1) {
         appendRow(); //add a new row
         setChars(&E.rows[E.numrows-1], line, read-1); //-1 to exclude the \n because writeScreen will add it
         //write(STDOUT_FILENO, line, len+1);
@@ -812,7 +818,7 @@ void readFile(const char *filename) {
     setChars(&E.rows[E.numrows-1], line, E.rows[E.numrows-1].length + 1); //add on the last character of the file
 
     free(line);
-    fclose(file); 
+    fclose(current_file); 
 }
 
 void basicRead(const char *filename){
@@ -854,6 +860,30 @@ void manualRead(const char *filename) {
     }
     
     fclose(fptr);
+}
+
+void saveFile(void){
+  E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
+  E.Cx = 1;
+  cursor_move_cmd(); //move the cursor
+  write(STDOUT_FILENO, "Filename: ", 10); //prompt user for filename
+  //printf("%s", "Filename: ");
+  
+  char filename[MAX_FILENAME];
+  exitRawMode(); //temporarily turn off RawMode
+  if (fgets(filename, sizeof(filename), stdin) != NULL) {
+      //remove the \n
+      size_t length = strlen(filename);
+      if (length > 0 && filename[length - 1] == '\n') {
+          filename[length - 1] = '\0';
+      }
+
+      printf("You entered: %s\n", filename);
+  } else {
+      printf("Error reading input.\n");
+  }
+  enableRawMode();
+  E.Cy = 1; //snap cursor back to top left of screen
 }
 
 /*** Main Loop ***/

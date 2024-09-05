@@ -25,5 +25,6 @@ void removeRow(int);
 void free_all_rows(void);
 void readFile(const char *);
 void basicRead(const char *);
+void saveFile(void);
 
 #endif 
