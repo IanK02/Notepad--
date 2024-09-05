@@ -870,6 +870,9 @@ void saveFile(void){
   //printf("%s", "Filename: ");
   
   char filename[MAX_FILENAME];
+
+  //strcpy(filename, "fresh.txt"); //for debug purposes
+
   exitRawMode(); //temporarily turn off RawMode
   if (fgets(filename, sizeof(filename), stdin) != NULL) {
       //remove the \n
@@ -877,13 +880,27 @@ void saveFile(void){
       if (length > 0 && filename[length - 1] == '\n') {
           filename[length - 1] = '\0';
       }
-
-      printf("You entered: %s\n", filename);
-  } else {
-      printf("Error reading input.\n");
+      writeFile(filename);
+      //printf("You entered: %s\n", filename);
   }
   enableRawMode();
-  E.Cy = 1; //snap cursor back to top left of screen
+  E.Cy = E.scroll+1; //snap cursor back to top of screen
+}
+
+void writeFile(char *filename){
+  FILE *fptr = fopen(filename, "w");
+
+  if (fptr == NULL) {
+      perror("Error opening file");
+      return;
+  }
+
+  for(int i = 0; i < E.numrows - 1; i++){ //write all the chars within rows to the file, note that a \r is NOT written because for some 
+    fprintf(fptr, "%s", E.rows[i].chars); //reason in .txt file land \r is not used, only \n, so we don't add them
+    fprintf(fptr, "%s", "\n");
+  }
+  fprintf(fptr, "%s", E.rows[E.numrows-1].chars);
+  fclose(fptr); 
 }
 
 /*** Main Loop ***/
@@ -896,8 +913,12 @@ int main(int argc, char *argv[]){
     clearScreen();
     writeScreen();
   }
+
+  //readFile("fresh.txt");  //for debug purposes only
+  //clearScreen();
+  //writeScreen();
+
   while(1){ //replace with 1 when developing
-    //readFile("okapi.txt");  for debug purposes only
     char c = processKeypress();
     sortKeypress(c);
     clearScreen();
