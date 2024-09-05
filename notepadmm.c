@@ -60,7 +60,7 @@ struct editor {
 /*** Global Variables ***/
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
-//FILE *current_file;
+char *CURRENT_FILENAME;
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -747,7 +747,8 @@ char processKeypress(void){
     if(c == CTRL_KEY('c')){ //used to check if key pressed was CTRL-C which is the key to close the editor
         write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
         write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
-        //free_all_rows();
+        //free(CURRENT_FILENAME); //free the current filename
+        free_all_rows();
         exit(0);
     }
   return c;
@@ -793,7 +794,8 @@ void writeScreen(void){
 }
 
 /*** File IO ***/
-void readFile(const char *filename) {
+void readFile(char *filename) {
+    CURRENT_FILENAME = filename; //CURRENT_FILENAME points to same block of memory as *filename which is argv[1]
     FILE *current_file;
     current_file = fopen(filename, "r");
     if (current_file == NULL) {
@@ -866,12 +868,17 @@ void saveFile(void){
   E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
   E.Cx = 1;
   cursor_move_cmd(); //move the cursor
-  write(STDOUT_FILENO, "Filename: ", 10); //prompt user for filename
+
+  char *ask_filename;
+  ask_filename = malloc(11 + strlen(CURRENT_FILENAME) + 1);
+  sprintf(ask_filename, "Filename: %s", CURRENT_FILENAME);
+
+  write(STDOUT_FILENO, ask_filename, strlen(ask_filename)); //prompt user for filename
   //printf("%s", "Filename: ");
   
   char filename[MAX_FILENAME];
 
-  //strcpy(filename, "fresh.txt"); //for debug purposes
+  //strcpy(filename, CURRENT_FILENAME); //set default filename to the file that is currently open
 
   exitRawMode(); //temporarily turn off RawMode
   if (fgets(filename, sizeof(filename), stdin) != NULL) {
@@ -880,15 +887,20 @@ void saveFile(void){
       if (length > 0 && filename[length - 1] == '\n') {
           filename[length - 1] = '\0';
       }
-      writeFile(filename);
+      if(strlen(filename) == 0){
+        writeFile(CURRENT_FILENAME);
+      } else {
+        writeFile(filename);
+      }
       //printf("You entered: %s\n", filename);
   }
   enableRawMode();
   E.Cy = E.scroll+1; //snap cursor back to top of screen
+  free(ask_filename);
 }
 
 void writeFile(char *filename){
-  FILE *fptr = fopen(filename, "w");
+  FILE *fptr = fopen(CURRENT_FILENAME, "w");
 
   if (fptr == NULL) {
       perror("Error opening file");
@@ -908,7 +920,7 @@ int main(int argc, char *argv[]){
   enableRawMode();
   initEditor();
   if(argc == 2){
-    const char *filename = argv[1];
+    char *filename = argv[1];
     readFile(filename);
     clearScreen();
     writeScreen();
