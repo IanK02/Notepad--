@@ -162,6 +162,8 @@ void initEditor(void){
 
   cbuf.cmds = NULL; //initialize the command buffers commands to "" and length to 0
   cbuf.len = 0; //1 for the null terminator
+
+  CURRENT_FILENAME = NULL; //set CURRENT_FILENAME to null to handle the case the user doesn't open a file
 }
 
 void free_all_rows(void){ //free all the text contained in the global editor E
@@ -933,17 +935,17 @@ void saveFile(void){
   //E.Cx = 1;
   //cursor_move_cmd(); //move the cursor
 
-  char *ask_filename;
-  ask_filename = malloc(11 + strlen(CURRENT_FILENAME) + 1);
-  sprintf(ask_filename, "Filename: %s", CURRENT_FILENAME);
+  //char *ask_filename;
+  //ask_filename = malloc(11 + strlen(CURRENT_FILENAME) + 1);
+  //sprintf(ask_filename, "Filename: %s", CURRENT_FILENAME);
 
   //write(STDOUT_FILENO, ask_filename, strlen(ask_filename)); //prompt user for filename
   //printf("%s", "Filename: ");
-  statusWrite(ask_filename);
+  statusWrite("Filename: ");
   
   char filename[MAX_FILENAME];
 
-  //strcpy(filename, CURRENT_FILENAME); //set default filename to the file that is currently open
+  //strcpy(filename, "other.txt"); //set default filename to the file that is currently open
 
   exitRawMode(); //temporarily turn off RawMode
   if (fgets(filename, sizeof(filename), stdin) != NULL) {
@@ -953,23 +955,32 @@ void saveFile(void){
           filename[length - 1] = '\0';
       }
       if(strlen(filename) > 256){
-        printf("%s", "Filename too large");
+        statusWrite("Filename too large");
+        enableRawMode();
+        E.Cy = E.scroll+1; //snap cursor back to top of screen
         return;
       }
-      if(strlen(filename) == 0){
+      if(CURRENT_FILENAME == NULL && strlen(filename) == 0){
+        statusWrite("Filename cannot be empty");
+        enableRawMode();
+        E.Cy = E.scroll+1; //snap cursor back to top of screen
+        return;
+      }
+
+      if(strlen(filename) == 0 && CURRENT_FILENAME != NULL){
         writeFile(CURRENT_FILENAME);
-      } else {
+      } else if(strlen(filename) > 0){
         writeFile(filename);
       }
       //printf("You entered: %s\n", filename);
   }
   enableRawMode();
   E.Cy = E.scroll+1; //snap cursor back to top of screen
-  free(ask_filename);
+  //free(ask_filename);
 }
 
 void writeFile(char *filename){
-  FILE *fptr = fopen(CURRENT_FILENAME, "w");
+  FILE *fptr = fopen(filename, "w");
 
   if (fptr == NULL) {
       perror("Error opening file");
