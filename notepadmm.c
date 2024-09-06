@@ -20,7 +20,7 @@
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 2)
 #define MIN_ROW_CAPACITY 64
 #define MAX_LINE_LENGTH 1000
-#define MAX_FILENAME 100
+#define MAX_FILENAME 256
 
 /*** Structures ***/
 struct cmd_buf{
@@ -55,6 +55,7 @@ struct editor {
   struct termios termios_o; //terminal configuration struct(from termios.h)
   struct winsize w;
   int scroll;
+  int sidescroll;
 };
 
 /*** Global Variables ***/
@@ -71,6 +72,7 @@ void shiftLineCharsL(int index, row *row);
 void initializeRowMemory(row *r, size_t capacity);
 row duplicate_row(const row *original_row);
 void setChars(row *row, char *chars, int strlen);
+char* getSubstring(row *original);
 
 /*** Command Buffer ***/
 void add_cmd(char *cmd, int last_cmd){
@@ -148,6 +150,7 @@ void initEditor(void){
   E.Cx = 1; //initialize cursor position to (1,1) which is the top left of the screen
   E.Cy = 1;
   E.scroll = 0; //scrolled to top of terminal to begin with
+  E.sidescroll = 0; //scrolled to far left of terminal to begin with
 
   //E.numrows = 0; //initialize numrows to 0 as no rows of text are present yet
   //we don't have to initialize termios_o as enableRawMode takes care of setting its attributes
@@ -172,6 +175,18 @@ void free_all_rows(void){ //free all the text contained in the global editor E
 }
 
 /*** Row Manipulation Methods ***/
+void sideScrollCharSet(row *row){
+  if((row->length - E.sidescroll) >= E.w.ws_col){
+  char *substr;
+  substr = malloc(E.w.ws_col + 1); //+1 for null terminator
+  strncpy(substr, row->chars + E.sidescroll, E.w.ws_col); //copy chars over to substr
+  substr[E.w.ws_col] = '\0'; //ensure substr is null termirnated
+  add_cmd(substr, 0);
+  } else if(E.sidescroll <= row->length){
+    if(row->chars != NULL) add_cmd(row->chars + E.sidescroll, 0);
+  }
+}
+
 void setChars(row *row, char *chars, int strlen){
   //strlen should NOT include the null terminator
   if(row->capacity <= strlen){//reallocate row's capacity if needed
@@ -389,6 +404,7 @@ void addRow(void){ //make a new row of text that is actually visible
     incrementCursor(0,1,0,0); //move cursor down
   }
   E.Cx = 1; //snap the cursor to the far left of the current row
+  E.sidescroll = 0; //set sidescroll to 0
 }
 
 void removeRow(int backSpace){
@@ -469,7 +485,7 @@ void incrementCursor(int up, int down, int left, int right){
             E.Cx--; //only increment if C.x is > 1, we have to use 1 because the cursor actually controls the character behind it
         }
     } else if(!up && !down && !left && right){ //right arrow
-        if(E.Cx < E.w.ws_col){
+        if(E.Cx <= E.sidescroll + E.w.ws_col){
             E.Cx++; //only increment if C.x < columns limit, the column limit is positive and represents the farthest right column on screen
         }
     }
@@ -518,11 +534,27 @@ void scrollDown(void){
   E.scroll++;
 }
 
+void scrollRight(void){
+  E.sidescroll++;
+}
+
+void scrollLeft(void){
+  if(E.sidescroll > 0) E.sidescroll--;
+}
+
 void scrollCheck(void){
   if((E.Cy) - E.scroll > E.w.ws_row){
     scrollDown();
   } else if ((E.Cy-1) < E.scroll){
     scrollUp();
+  }
+}
+
+void sidescrollCheck(void){
+  if(E.Cx - E.sidescroll > E.w.ws_col){
+    scrollRight();
+  } else if (E.Cx-1 < E.sidescroll){
+    scrollLeft();
   }
 }
 
@@ -542,7 +574,7 @@ void shiftLineCharsL(int index, row *row){ //shift all characters in a row to th
 }
 
 void addPrintableChar(char c) {
-    if (E.Cx < E.w.ws_col) {
+    if (E.Cx - E.sidescroll <= E.w.ws_col) {
         //temporary pointer to the row we're editing
         row *currentRow = &E.rows[E.Cy-1];
         
@@ -575,21 +607,27 @@ void addPrintableChar(char c) {
         //increment row length
         currentRow->length++;
 
-        currentRow->chars[currentRow->length] = '\0'; //ensure row is always null terminated
-        //increment cursor to account for the new character     
-        E.Cx++;
+        currentRow->chars[currentRow->length] = '\0'; //ensure row is always null terminated    
+        E.Cx++; //increment cursor to account for the new character 
+        if(E.Cx - E.sidescroll > E.w.ws_col){ //check if we need to scroll
+          scrollRight();
+        }
     }
 }
+
 void tabPressed(){ //add checking if tab will push text further past row limit
   //add a space four times or less if we don't have the space
-  if((E.rows[E.Cy-1].length + 4 < E.w.ws_col)){
-    for(int i = 0; i < 4; i++){
-      addPrintableChar(' ');
-    }
-  } else if(E.rows[E.Cy-1].length < E.w.ws_col){
-    for(int i = 0; i < E.w.ws_col - E.rows[E.Cy-1].length - 1; i++){
-      addPrintableChar(' ');
-    }
+  //if((E.rows[E.Cy-1].length + 4 < E.w.ws_col)){
+  //  for(int i = 0; i < 4; i++){
+  //    addPrintableChar(' ');
+  //  }
+  //} else if(E.rows[E.Cy-1].length < E.w.ws_col){
+  //  for(int i = 0; i < E.w.ws_col - E.rows[E.Cy-1].length - 1; i++){
+  //    addPrintableChar(' ');
+  //  }
+  //}
+  for(int i = 0; i < 4; i++){
+    addPrintableChar(' ');
   }
 }
 
@@ -623,6 +661,9 @@ void backspacePrintableChar(void) {
         currentRow->chars[currentRow->length] = '\0';
         //decrement character to account for the new shorter row
         E.Cx--;
+        if(E.Cx <= E.sidescroll){
+          scrollLeft();
+        } 
     }
 }
 
@@ -654,6 +695,10 @@ void deletePrintableChar(void){
         //DO NOT decrement character to account for the new shorter row
         //this is how delete is different from backspace
     }
+}
+
+char* getSubstring(row *original){
+
 }
 
 /*** User Input Processing ***/
@@ -725,7 +770,7 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     if(buf == NULL){
       printf("%s", "Memory allocation failed\n");
     }
-    snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy-E.scroll, E.Cx);
+    snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy-E.scroll, E.Cx - E.sidescroll);
     write(STDOUT_FILENO, buf, buf_size-1); //move cursor to location specified by Cx and Cy
     //add_cmd(buf, 0);
     write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
@@ -747,7 +792,6 @@ char processKeypress(void){
     if(c == CTRL_KEY('c')){ //used to check if key pressed was CTRL-C which is the key to close the editor
         write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
         write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
-        //free(CURRENT_FILENAME); //free the current filename
         free_all_rows();
         exit(0);
     }
@@ -755,7 +799,12 @@ char processKeypress(void){
 }
 
 void clearScreen(void){
-  write(STDOUT_FILENO, "\x1b[2J", 4); //clear the entire screen
+  int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.w.ws_row, E.w.ws_col)+1;
+  char *move_cmd = malloc(buf_size);
+  snprintf(move_cmd, buf_size, "\x1b[%d;%dH", E.w.ws_row, E.w.ws_col);
+  write(STDOUT_FILENO, move_cmd, buf_size-1);
+
+  write(STDOUT_FILENO, "\x1b[1J", 4); //clear the entire screen
   write(STDOUT_FILENO, "\x1b[H", 3); //rest cursor to top left(visible change)
 }
 
@@ -767,21 +816,32 @@ void writeScreen(void){
     for(int i = E.scroll; i < E.numrows - 1; i++){
       //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
       //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
-      if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
+      //if(E.rows[i].length > E.w.ws_col){
+      //  char *substr;
+      //  substr = malloc(E.w.ws_col + 1); //+1 for null terminator
+      //  strncpy(substr, E.rows[i].chars, E.w.ws_col); //copy chars over to substr
+      //  substr[E.w.ws_col] = '\0'; //ensure substr is null termirnated
+      //  add_cmd(substr, 0);
+      //} else {
+      //  if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
+      //}
+      sideScrollCharSet(&E.rows[i]);
       add_cmd("\r\n", 0);
     }
-    if(E.rows[E.numrows-1].chars != NULL) add_cmd(E.rows[E.numrows-1].chars, 0);
+    if(E.rows[E.numrows-1].chars != NULL) sideScrollCharSet(&E.rows[E.numrows-1]);
   } else {
     for(int i = E.scroll; i < E.scroll + E.w.ws_row - 1; i++){
       //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
       //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
-      if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
+      //if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
+      sideScrollCharSet(&E.rows[i]);
       add_cmd("\r\n", 0);
     }
     //if(E.numrows-E.scroll >= E.w.ws_row){
     //  add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
     //}
-    add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
+    //add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
+    if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) sideScrollCharSet(&E.rows[E.scroll + E.w.ws_row - 1]);
   }
   //add_cmd("\r\n", 0);
   //printf("%s", cbuf.cmds);
@@ -795,6 +855,10 @@ void writeScreen(void){
 
 /*** File IO ***/
 void readFile(char *filename) {
+    if(strlen(filename) > 256){
+      printf("%s\n", "File name too large");
+      return;
+    }
     CURRENT_FILENAME = filename; //CURRENT_FILENAME points to same block of memory as *filename which is argv[1]
     FILE *current_file;
     current_file = fopen(filename, "r");
@@ -865,16 +929,17 @@ void manualRead(const char *filename) {
 }
 
 void saveFile(void){
-  E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
-  E.Cx = 1;
-  cursor_move_cmd(); //move the cursor
+  //E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
+  //E.Cx = 1;
+  //cursor_move_cmd(); //move the cursor
 
   char *ask_filename;
   ask_filename = malloc(11 + strlen(CURRENT_FILENAME) + 1);
   sprintf(ask_filename, "Filename: %s", CURRENT_FILENAME);
 
-  write(STDOUT_FILENO, ask_filename, strlen(ask_filename)); //prompt user for filename
+  //write(STDOUT_FILENO, ask_filename, strlen(ask_filename)); //prompt user for filename
   //printf("%s", "Filename: ");
+  statusWrite(ask_filename);
   
   char filename[MAX_FILENAME];
 
@@ -886,6 +951,10 @@ void saveFile(void){
       size_t length = strlen(filename);
       if (length > 0 && filename[length - 1] == '\n') {
           filename[length - 1] = '\0';
+      }
+      if(strlen(filename) > 256){
+        printf("%s", "Filename too large");
+        return;
       }
       if(strlen(filename) == 0){
         writeFile(CURRENT_FILENAME);
@@ -912,7 +981,33 @@ void writeFile(char *filename){
     fprintf(fptr, "%s", "\n");
   }
   fprintf(fptr, "%s", E.rows[E.numrows-1].chars);
+  
+  long size = getFileSize(fptr);
+  char *bytes_message = malloc(sizeof(long) + 18 + strlen(filename) + 1);
+  sprintf(bytes_message, "%ld bytes written to %s", size, filename);
+  statusWrite(bytes_message);
+
   fclose(fptr); 
+}
+
+long getFileSize(FILE *file){
+  long size;
+  fseek(file, 0, SEEK_END); //move pointer to end of file
+  size = ftell(file); //get pointer position(this is the file size)
+  fseek(file, 0, SEEK_SET); //move pointer back to beginning of file
+  return size;
+}
+
+/*** Status Bar Methods ***/
+void statusWrite(char *message){
+  E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
+  E.Cx = 1;
+  cursor_move_cmd(); //move the cursor
+
+  write(STDOUT_FILENO, "\x1b[2K", 4); //clear the special row
+  write(STDOUT_FILENO, message, strlen(message)); //write the message to the special row
+
+  E.Cy = E.scroll+1; //snap cursor back to top of screen
 }
 
 /*** Main Loop ***/
@@ -926,7 +1021,7 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  //readFile("fresh.txt");  //for debug purposes only
+  //readFile("longline.txt");  //for debug purposes only
   //clearScreen();
   //writeScreen();
 
@@ -935,6 +1030,7 @@ int main(int argc, char *argv[]){
     sortKeypress(c);
     clearScreen();
     scrollCheck();
+    sidescrollCheck();
     writeScreen();
     //writeCmds();
   }

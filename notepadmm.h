@@ -1,5 +1,6 @@
 #ifndef NOTEPADMM_H
 #define NOTEPADMM_H
+#include <stdio.h>
 
 void add_cmd(char *, int);
 void writeCmds(void);
@@ -27,5 +28,9 @@ void readFile(char *);
 void basicRead(const char *);
 void saveFile(void);
 void writeFile(char *);
+void statusWrite(char *);
+long getFileSize(FILE *);
+void scrollRight(void);
+void scrollLeft(void);
 
 #endif 
