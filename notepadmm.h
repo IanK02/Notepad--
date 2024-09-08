@@ -32,5 +32,6 @@ void statusWrite(char *);
 long getFileSize(FILE *);
 void scrollRight(void);
 void scrollLeft(void);
+void searchHighlight(char **);
 
 #endif 

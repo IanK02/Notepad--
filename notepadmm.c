@@ -62,6 +62,7 @@ struct editor {
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
 char *CURRENT_FILENAME;
+int searchFlag;
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -164,6 +165,7 @@ void initEditor(void){
   cbuf.len = 0; //1 for the null terminator
 
   CURRENT_FILENAME = NULL; //set CURRENT_FILENAME to null to handle the case the user doesn't open a file
+  searchFlag = 0; //set serachFlag initiallly to 0 since we won't be searching on initialization
 }
 
 void free_all_rows(void){ //free all the text contained in the global editor E
@@ -177,16 +179,19 @@ void free_all_rows(void){ //free all the text contained in the global editor E
 }
 
 /*** Row Manipulation Methods ***/
-void sideScrollCharSet(row *row){
+char* sideScrollCharSet(row *row){
   if((row->length - E.sidescroll) >= E.w.ws_col){
-  char *substr;
-  substr = malloc(E.w.ws_col + 1); //+1 for null terminator
-  strncpy(substr, row->chars + E.sidescroll, E.w.ws_col); //copy chars over to substr
-  substr[E.w.ws_col] = '\0'; //ensure substr is null termirnated
-  add_cmd(substr, 0);
+    char *substr;
+    substr = malloc(E.w.ws_col + 1); //+1 for null terminator
+    strncpy(substr, row->chars + E.sidescroll, E.w.ws_col); //copy chars over to substr
+    substr[E.w.ws_col] = '\0'; //ensure substr is null termirnated
+    add_cmd(substr, 0);
+    return substr;
   } else if(E.sidescroll <= row->length){
     if(row->chars != NULL) add_cmd(row->chars + E.sidescroll, 0);
+    return row->chars;
   }
+  
 }
 
 void setChars(row *row, char *chars, int strlen){
@@ -561,6 +566,30 @@ void sidescrollCheck(void){
 }
 
 /*** Charcater Manipulation Methods ***/
+void insertStr(char **original, char* insert, size_t index){
+  if(index > strlen(*original)){
+    printf("%s", "index out of bounds");
+    exit(1);
+  }
+
+  char *result = malloc(strlen(*original) + strlen(insert) + 1);
+  if(result == NULL){
+    printf("Memory allocation failed");
+    exit(1);
+  }
+
+  strncpy(result, *original, index);
+  
+  strcpy(result + index, insert);
+
+  strcpy(result + index + strlen(insert), *original + index);
+
+  free(*original);
+  *original = result;
+  //free(original);
+  //return original;
+}
+
 void shiftLineCharsR(int index, row *row){ //shift all characters in a row to the right by one, at index two characters will be identical,
                                            //they will be copies of the character at that index in the original string
     for (int i = row->length - 1; i > index; i--) {
@@ -758,6 +787,8 @@ void sortKeypress(char c){
     tabPressed();
   } else if (c == CTRL_KEY('s')){
     saveFile();
+  }else if (c == CTRL_KEY('b')){
+    searchFlag = !searchFlag;
   } else { //one of the unmapped keys was pressed so just do nothing
     return;
   }
@@ -827,23 +858,39 @@ void writeScreen(void){
       //} else {
       //  if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       //}
-      sideScrollCharSet(&E.rows[i]);
+      char* written_chars;
+      if(searchFlag) searchHighlight(&E.rows[i].chars);
+      written_chars = sideScrollCharSet(&E.rows[i]);
+      //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
     }
-    if(E.rows[E.numrows-1].chars != NULL) sideScrollCharSet(&E.rows[E.numrows-1]);
+    if(E.rows[E.numrows-1].chars != NULL){ 
+      char* written_chars;
+      if(searchFlag) searchHighlight(&E.rows[E.numrows-1].chars);
+      written_chars = sideScrollCharSet(&E.rows[E.numrows-1]);
+      //if(searchFlag) searchHighlight(written_chars);
+    }
   } else {
     for(int i = E.scroll; i < E.scroll + E.w.ws_row - 1; i++){
       //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
       //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
       //if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
-      sideScrollCharSet(&E.rows[i]);
+      char* written_chars;
+      if(searchFlag) searchHighlight(&E.rows[i].chars);
+      written_chars = sideScrollCharSet(&E.rows[i]);
+      //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
     }
     //if(E.numrows-E.scroll >= E.w.ws_row){
     //  add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
     //}
     //add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
-    if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) sideScrollCharSet(&E.rows[E.scroll + E.w.ws_row - 1]);
+    if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) {
+      char* written_chars;
+      if(searchFlag) searchHighlight(&E.rows[E.scroll + E.w.ws_row - 1].chars);
+      written_chars = sideScrollCharSet(&E.rows[E.scroll + E.w.ws_row - 1]);
+      //if(searchFlag) searchHighlight(written_chars);
+    }
   }
   //add_cmd("\r\n", 0);
   //printf("%s", cbuf.cmds);
@@ -1019,6 +1066,36 @@ void statusWrite(char *message){
   write(STDOUT_FILENO, message, strlen(message)); //write the message to the special row
 
   E.Cy = E.scroll+1; //snap cursor back to top of screen
+  cursor_move_cmd();
+}
+
+/*** Searching Methods ***/
+void searchHighlight(char **chars){
+  //change this to a char **chars, we need it to actually reassign the memory pointed to
+  //by E.rows[i].chars;
+  statusWrite("");
+  exitRawMode();
+  char searchQuery[1000];
+
+  char *foundWord;
+  searchQuery[0] = 'f';
+  searchQuery[1] = 'j';
+  searchQuery[2] = 'f';
+  searchQuery[3] = '\0';
+  foundWord = *chars;
+  int index = 0;
+  //if(fgets(searchQuery, sizeof(searchQuery), stdin) != NULL){
+    while(foundWord != NULL){
+      foundWord = strstr(foundWord + 3, searchQuery);
+      index = foundWord - *chars;
+      //if(foundWord != NULL) strcat("\x1b[0m\x1b[48;5;226m", foundWord); //concatenate to the beginning of foundWord
+      if(foundWord != NULL) {
+        //char **charsptr = &chars;
+        insertStr(chars, "\x1b[48;5;226m", index);
+      }
+    }
+  //}
+  enableRawMode();
 }
 
 /*** Main Loop ***/
@@ -1032,9 +1109,9 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  //readFile("longline.txt");  //for debug purposes only
-  //clearScreen();
-  //writeScreen();
+  readFile("longline.txt");  //for debug purposes only
+  clearScreen();
+  writeScreen();
 
   while(1){ //replace with 1 when developing
     char c = processKeypress();
