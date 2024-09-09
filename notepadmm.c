@@ -33,10 +33,13 @@ typedef struct row {
    * This represents a row of text, it will contain the information listed below
    * 1. char *chars - A string of the actual text of the row
    * 2. int length - Length of the row
+   * 3. size_t capacity - memory capacity of the erow
+   * 4. int cmdlen - how many characters of the row are undisplayable commands
    */
   char *chars;
   int length;
   size_t capacity;
+  int cmdlen;
 } row;
 
 struct editor {
@@ -63,6 +66,7 @@ struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
 char *CURRENT_FILENAME;
 int searchFlag;
+char searchQuery[256];
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -71,7 +75,7 @@ int searchFlag;
 void shiftLineCharsR(int index, row *row);
 void shiftLineCharsL(int index, row *row);
 void initializeRowMemory(row *r, size_t capacity);
-row duplicate_row(const row *original_row);
+row duplicate_row(row *original_row);
 void setChars(row *row, char *chars, int strlen);
 char* getSubstring(row *original);
 
@@ -179,12 +183,26 @@ void free_all_rows(void){ //free all the text contained in the global editor E
 }
 
 /*** Row Manipulation Methods ***/
-char* sideScrollCharSet(row *row){
+char* sideScrollCharSet(row *row, int *highlightedIndices){
   if((row->length - E.sidescroll) >= E.w.ws_col){
     char *substr;
-    substr = malloc(E.w.ws_col + 1); //+1 for null terminator
-    strncpy(substr, row->chars + E.sidescroll, E.w.ws_col); //copy chars over to substr
-    substr[E.w.ws_col] = '\0'; //ensure substr is null termirnated
+    substr = malloc(E.w.ws_col + row->cmdlen + 1); //+1 for null terminator
+    int offset = 0;
+    //char start = *(row->chars + E.sidescroll + offset);
+    //if((int)start == 91 && E.sidescroll > 0){
+    //  char oneBehind = *(row->chars + E.sidescroll + offset - 1);
+    //  if((int)oneBehind == 27){
+    //    offset += 14 + strlen(searchQuery);
+    //  }
+    //}
+    for(int i = 0; i < row->cmdlen / 15; i++){
+      if(highlightedIndices[i] >= E.sidescroll && highlightedIndices[i] <= E.sidescroll + E.w.ws_col){
+        offset += 15;
+      }
+    }
+    strncpy(substr, row->chars + E.sidescroll + row->cmdlen - offset, E.w.ws_col + offset); //copy chars over to substr
+
+    substr[E.w.ws_col + offset] = '\0'; //ensure substr is null termirnated
     add_cmd(substr, 0);
     return substr;
   } else if(E.sidescroll <= row->length){
@@ -211,7 +229,7 @@ void setChars(row *row, char *chars, int strlen){
   row->chars[strlen] = '\0'; //make sure chars is null terminated
 } 
 
-row duplicate_row(const row *original) {
+row duplicate_row(row *original) {
     // Initialize a new row
     row new_row;
 
@@ -232,6 +250,7 @@ row duplicate_row(const row *original) {
     // Copy other properties
     new_row.length = original->length;
     new_row.capacity = original->capacity;
+    new_row.cmdlen = original->cmdlen;
 
     return new_row;
 }
@@ -240,6 +259,7 @@ void initializeRowMemory(row *r, size_t capacity) {
     //initialize chars to have MIN_ROW_CAPACITY bytes
     r->chars = malloc(capacity);
     r->capacity = MIN_ROW_CAPACITY;
+    r->cmdlen = 0;
     if (r->chars == NULL) {
         // Handle memory allocation failure
         exit(1);
@@ -733,6 +753,19 @@ char* getSubstring(row *original){
 }
 
 /*** User Input Processing ***/
+void searchPrompt(void){ //prompt the user for what word they want to search for(ctrl+f)
+  int oldX = E.Cx;
+  int oldY = E.Cy;
+  statusWrite("");
+  exitRawMode();
+  fgets(searchQuery, sizeof(searchQuery), stdin);
+  searchQuery[strcspn(searchQuery, "\n")] = '\0';
+  printf("%s", searchQuery);
+  enableRawMode();
+  E.Cx = oldX;
+  E.Cy = oldY;
+}
+
 void sortEscapes(char c){
     char *buff = malloc(4); //three character buffer to store all three characters of the arrow key commands
     buff[0] = c;
@@ -788,6 +821,9 @@ void sortKeypress(char c){
   } else if (c == CTRL_KEY('s')){
     saveFile();
   }else if (c == CTRL_KEY('b')){
+    //if(searchFlag == 0) searchPrompt();
+    searchQuery[0] = 'a'; //for debug purposes only
+    searchQuery[1] = '\0';
     searchFlag = !searchFlag;
   } else { //one of the unmapped keys was pressed so just do nothing
     return;
@@ -859,15 +895,25 @@ void writeScreen(void){
       //  if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       //}
       char* written_chars;
-      if(searchFlag) searchHighlight(&E.rows[i].chars);
-      written_chars = sideScrollCharSet(&E.rows[i]);
+      int* highlightedIndices;
+      row dup_row = duplicate_row(&E.rows[i]);
+      if(searchFlag) {
+        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+      }
+      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
       //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
+      free(dup_row.chars);
     }
     if(E.rows[E.numrows-1].chars != NULL){ 
       char* written_chars;
-      if(searchFlag) searchHighlight(&E.rows[E.numrows-1].chars);
-      written_chars = sideScrollCharSet(&E.rows[E.numrows-1]);
+      int* highlightedIndices;
+      row dup_row = duplicate_row(&E.rows[E.numrows-1]);
+      if(searchFlag) {
+        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+      }
+      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+      free(dup_row.chars);
       //if(searchFlag) searchHighlight(written_chars);
     }
   } else {
@@ -876,10 +922,15 @@ void writeScreen(void){
       //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
       //if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       char* written_chars;
-      if(searchFlag) searchHighlight(&E.rows[i].chars);
-      written_chars = sideScrollCharSet(&E.rows[i]);
+      int* highlightedIndices;
+      row dup_row = duplicate_row(&E.rows[i]);
+      if(searchFlag) {
+        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+      }
+      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
       //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
+      free(dup_row.chars);
     }
     //if(E.numrows-E.scroll >= E.w.ws_row){
     //  add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
@@ -887,8 +938,12 @@ void writeScreen(void){
     //add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
     if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) {
       char* written_chars;
-      if(searchFlag) searchHighlight(&E.rows[E.scroll + E.w.ws_row - 1].chars);
-      written_chars = sideScrollCharSet(&E.rows[E.scroll + E.w.ws_row - 1]);
+      int* highlightedIndices;
+      row dup_row = duplicate_row(&E.rows[E.scroll + E.w.ws_row - 1]);
+      if(searchFlag) {
+        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+      }
+      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
       //if(searchFlag) searchHighlight(written_chars);
     }
   }
@@ -1065,37 +1120,50 @@ void statusWrite(char *message){
   write(STDOUT_FILENO, "\x1b[2K", 4); //clear the special row
   write(STDOUT_FILENO, message, strlen(message)); //write the message to the special row
 
-  E.Cy = E.scroll+1; //snap cursor back to top of screen
-  cursor_move_cmd();
 }
 
 /*** Searching Methods ***/
-void searchHighlight(char **chars){
+int* searchHighlight(char **chars, int *cmdlen){
   //change this to a char **chars, we need it to actually reassign the memory pointed to
   //by E.rows[i].chars;
-  statusWrite("");
-  exitRawMode();
-  char searchQuery[1000];
+  //*cmdlen is used to keep track of how many of the characters within a row's characters
+  //are unprintable commands
+
+  //statusWrite("");
+  //exitRawMode();
+  //char searchQuery[1000];
 
   char *foundWord;
-  searchQuery[0] = 'f';
-  searchQuery[1] = 'j';
-  searchQuery[2] = 'f';
-  searchQuery[3] = '\0';
-  foundWord = *chars;
+  //searchQuery[0] = 'a';
+  //searchQuery[1] = '\0';
+  //searchQuery[2] = '\0';
+  //searchQuery[3] = '\0';
+  //searchQuery[4] = '\0';
+  //foundWord = *chars;
   int index = 0;
-  //if(fgets(searchQuery, sizeof(searchQuery), stdin) != NULL){
+  int searchOffset = 0;
+  int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int)); //create an array to keep track of which indices get highlighted
+  int indicesLen = 0;
+  if(searchQuery != NULL){
+    foundWord = strstr(*chars + index + searchOffset, searchQuery);
     while(foundWord != NULL){
-      foundWord = strstr(foundWord + 3, searchQuery);
+      searchOffset = strlen(searchQuery);
       index = foundWord - *chars;
       //if(foundWord != NULL) strcat("\x1b[0m\x1b[48;5;226m", foundWord); //concatenate to the beginning of foundWord
       if(foundWord != NULL) {
         //char **charsptr = &chars;
         insertStr(chars, "\x1b[48;5;226m", index);
+        insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
+        (*cmdlen) += 15;
+        highlightIndices[indicesLen] = index;
+        indicesLen++;
+        foundWord = strstr(*chars + index + searchOffset + 15, searchQuery);
       }
     }
-  //}
-  enableRawMode();
+  }
+  highlightIndices[indicesLen] = indicesLen; //tack on a new last element to indicate array's length
+  return highlightIndices;
+  //enableRawMode();
 }
 
 /*** Main Loop ***/
