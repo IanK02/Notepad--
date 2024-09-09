@@ -184,10 +184,12 @@ void free_all_rows(void){ //free all the text contained in the global editor E
 
 /*** Row Manipulation Methods ***/
 char* sideScrollCharSet(row *row, int *highlightedIndices){
+  int offset = 0;
   if((row->length - E.sidescroll) >= E.w.ws_col){
+    //in this context offset counts how many highlighted letters are to be printed
     char *substr;
     substr = malloc(E.w.ws_col + row->cmdlen + 1); //+1 for null terminator
-    int offset = 0;
+    //int offset = 0;
     //char start = *(row->chars + E.sidescroll + offset);
     //if((int)start == 91 && E.sidescroll > 0){
     //  char oneBehind = *(row->chars + E.sidescroll + offset - 1);
@@ -206,7 +208,13 @@ char* sideScrollCharSet(row *row, int *highlightedIndices){
     add_cmd(substr, 0);
     return substr;
   } else if(E.sidescroll <= row->length){
-    if(row->chars != NULL) add_cmd(row->chars + E.sidescroll, 0);
+    //in this context offset counts how many highlighted letters are behind sidescroll
+    for(int i = 0; i < row->cmdlen / 15; i++){
+      if(highlightedIndices[i] < E.sidescroll){
+        offset += 15;
+      }
+    }
+    if(row->chars != NULL) add_cmd(row->chars + E.sidescroll + offset, 0);
     return row->chars;
   }
   
@@ -1154,8 +1162,8 @@ int* searchHighlight(char **chars, int *cmdlen){
         //char **charsptr = &chars;
         insertStr(chars, "\x1b[48;5;226m", index);
         insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
+        highlightIndices[indicesLen] = index - *cmdlen;
         (*cmdlen) += 15;
-        highlightIndices[indicesLen] = index;
         indicesLen++;
         foundWord = strstr(*chars + index + searchOffset + 15, searchQuery);
       }
