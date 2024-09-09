@@ -185,10 +185,9 @@ void free_all_rows(void){ //free all the text contained in the global editor E
 /*** Row Manipulation Methods ***/
 char* sideScrollCharSet(row *row, int *highlightedIndices){
   int offset = 0;
+  int offScreenFlag = 0;
   if((row->length - E.sidescroll) >= E.w.ws_col){
     //in this context offset counts how many highlighted letters are to be printed
-    char *substr;
-    substr = malloc(E.w.ws_col + row->cmdlen + 1); //+1 for null terminator
     //int offset = 0;
     //char start = *(row->chars + E.sidescroll + offset);
     //if((int)start == 91 && E.sidescroll > 0){
@@ -198,14 +197,17 @@ char* sideScrollCharSet(row *row, int *highlightedIndices){
     //  }
     //}
     for(int i = 0; i < row->cmdlen / 15; i++){
-      if(highlightedIndices[i] >= E.sidescroll && highlightedIndices[i] <= E.sidescroll + E.w.ws_col){
+      if(highlightedIndices[i] >= E.sidescroll && highlightedIndices[i] < E.sidescroll + E.w.ws_col){
         offset += 15;
       }
+      //if()
     }
+    char *substr;
+    substr = malloc(E.w.ws_col + offset + 1); //+1 for null terminator
     strncpy(substr, row->chars + E.sidescroll + row->cmdlen - offset, E.w.ws_col + offset); //copy chars over to substr
 
     substr[E.w.ws_col + offset] = '\0'; //ensure substr is null termirnated
-    add_cmd(substr, 0);
+    //add_cmd(substr, 0);
     return substr;
   } else if(E.sidescroll <= row->length){
     //in this context offset counts how many highlighted letters are behind sidescroll
@@ -214,8 +216,12 @@ char* sideScrollCharSet(row *row, int *highlightedIndices){
         offset += 15;
       }
     }
-    if(row->chars != NULL) add_cmd(row->chars + E.sidescroll + offset, 0);
-    return row->chars;
+    //if(row->chars != NULL) add_cmd(row->chars + E.sidescroll + offset, 0);
+    char *substr;
+    substr = malloc(row->length - E.sidescroll + row->cmdlen - offset + 1); //+1 for null terminator
+    strncpy(substr, row->chars + E.sidescroll + offset, (row->length - E.sidescroll) + row->cmdlen - offset);
+    substr[row->length - E.sidescroll + row->cmdlen - offset] = '\0'; //ensure substr is null termirnated
+    return substr;
   }
   
 }
@@ -765,10 +771,11 @@ void searchPrompt(void){ //prompt the user for what word they want to search for
   int oldX = E.Cx;
   int oldY = E.Cy;
   statusWrite("");
+
   exitRawMode();
+  //memset(searchQuery, 0, sizeof(searchQuery));
   fgets(searchQuery, sizeof(searchQuery), stdin);
   searchQuery[strcspn(searchQuery, "\n")] = '\0';
-  printf("%s", searchQuery);
   enableRawMode();
   E.Cx = oldX;
   E.Cy = oldY;
@@ -906,9 +913,13 @@ void writeScreen(void){
       int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
-        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        add_cmd(written_chars, 0);
+      } else {
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        add_cmd(written_chars, 0);
       }
-      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
       //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
@@ -918,9 +929,13 @@ void writeScreen(void){
       int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.numrows-1]);
       if(searchFlag) {
-        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        add_cmd(written_chars, 0);
+      } else {
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        add_cmd(written_chars, 0);
       }
-      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
       free(dup_row.chars);
       //if(searchFlag) searchHighlight(written_chars);
     }
@@ -933,9 +948,13 @@ void writeScreen(void){
       int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
-        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        add_cmd(written_chars, 0);
+      } else {
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        add_cmd(written_chars, 0);
       }
-      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
       //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
@@ -949,9 +968,13 @@ void writeScreen(void){
       int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.scroll + E.w.ws_row - 1]);
       if(searchFlag) {
-        highlightedIndices = searchHighlight(&dup_row.chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        add_cmd(written_chars, 0);
+      } else {
+        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        add_cmd(written_chars, 0);
       }
-      written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
       //if(searchFlag) searchHighlight(written_chars);
     }
   }
@@ -1122,9 +1145,9 @@ long getFileSize(FILE *file){
 /*** Status Bar Methods ***/
 void statusWrite(char *message){
   E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
-  E.Cx = 1;
+  E.Cx = E.sidescroll;
   cursor_move_cmd(); //move the cursor
-
+  
   write(STDOUT_FILENO, "\x1b[2K", 4); //clear the special row
   write(STDOUT_FILENO, message, strlen(message)); //write the message to the special row
 
