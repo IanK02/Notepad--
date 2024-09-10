@@ -67,6 +67,13 @@ struct cmd_buf cbuf; //The global command buffer
 char *CURRENT_FILENAME;
 int searchFlag;
 char searchQuery[256];
+const char *c_keywords[] = {
+    "auto", "break", "case", "char", "const", "continue", "default", "do",
+    "double", "else", "enum", "extern", "float", "for", "goto", "if",
+    "inline", "int", "long", "register", "return", "short", "signed", 
+    "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned",
+    "void", "volatile", "while"
+};
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -183,7 +190,7 @@ void free_all_rows(void){ //free all the text contained in the global editor E
 }
 
 /*** Row Manipulation Methods ***/
-char* sideScrollCharSet(row *row, int *highlightedIndices){
+char* sideScrollCharSet(row *row){
   int offset = 0;
   int offScreenFlag = 0;
   if((row->length - E.sidescroll) >= E.w.ws_col){
@@ -196,12 +203,13 @@ char* sideScrollCharSet(row *row, int *highlightedIndices){
     //    offset += 14 + strlen(searchQuery);
     //  }
     //}
-    for(int i = 0; i < row->cmdlen / 15; i++){
-      if(highlightedIndices[i] >= E.sidescroll && highlightedIndices[i] < E.sidescroll + E.w.ws_col){
-        offset += 15;
-      }
-      //if()
-    }
+
+    //for(int i = 0; i < row->cmdlen / 15; i++){
+    //  if(highlightedIndices[i] >= E.sidescroll && highlightedIndices[i] < E.sidescroll + E.w.ws_col){
+    //    offset += 15;
+    //  }
+      
+    //}
     char *substr;
     substr = malloc(E.w.ws_col + offset + 1); //+1 for null terminator
     strncpy(substr, row->chars + E.sidescroll + row->cmdlen - offset, E.w.ws_col + offset); //copy chars over to substr
@@ -211,11 +219,11 @@ char* sideScrollCharSet(row *row, int *highlightedIndices){
     return substr;
   } else if(E.sidescroll <= row->length){
     //in this context offset counts how many highlighted letters are behind sidescroll
-    for(int i = 0; i < row->cmdlen / 15; i++){
-      if(highlightedIndices[i] < E.sidescroll){
-        offset += 15;
-      }
-    }
+    //for(int i = 0; i < row->cmdlen / 15; i++){
+    //  if(highlightedIndices[i] < E.sidescroll){
+    //    offset += 15;
+    //  }
+    //}
     //if(row->chars != NULL) add_cmd(row->chars + E.sidescroll + offset, 0);
     //we MUST use substr because we have to return a different string, we can't return
     //row->chars
@@ -224,6 +232,8 @@ char* sideScrollCharSet(row *row, int *highlightedIndices){
     strncpy(substr, row->chars + E.sidescroll + offset, (row->length - E.sidescroll) + row->cmdlen - offset);
     substr[row->length - E.sidescroll + row->cmdlen - offset] = '\0'; //ensure substr is null termirnated
     return substr;
+  } else if(E.sidescroll > row->length){
+    return "";
   }
   
 }
@@ -838,9 +848,12 @@ void sortKeypress(char c){
   } else if (c == CTRL_KEY('s')){
     saveFile();
   }else if (c == CTRL_KEY('b')){
-    if(searchFlag == 0) searchPrompt();
-    //searchQuery[0] = 'a'; //for debug purposes only
-    //searchQuery[1] = '\0';
+    //if(searchFlag == 0) searchPrompt();
+    searchQuery[0] = 'v'; //for debug purposes only
+    searchQuery[1] = 'o';
+    searchQuery[2] = 'i';
+    searchQuery[3] = 'd';
+    searchQuery[4] = '\0';
     searchFlag = !searchFlag;
   } else { //one of the unmapped keys was pressed so just do nothing
     return;
@@ -912,14 +925,16 @@ void writeScreen(void){
       //  if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       //}
       char* written_chars;
-      int* highlightedIndices;
+      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
-        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row);
+        searchHighlight(&written_chars, &dup_row.cmdlen);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        written_chars = sideScrollCharSet(&dup_row);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       //if(searchFlag) searchHighlight(written_chars);
@@ -931,11 +946,13 @@ void writeScreen(void){
       int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.numrows-1]);
       if(searchFlag) {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
-        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row);
+        searchHighlight(&written_chars, &dup_row.cmdlen);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        written_chars = sideScrollCharSet(&dup_row);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       free(dup_row.chars);
@@ -950,11 +967,13 @@ void writeScreen(void){
       int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
-        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row);
+        searchHighlight(&written_chars, &dup_row.cmdlen);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        written_chars = sideScrollCharSet(&dup_row);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       //if(searchFlag) searchHighlight(written_chars);
@@ -970,11 +989,13 @@ void writeScreen(void){
       int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.scroll + E.w.ws_row - 1]);
       if(searchFlag) {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
-        highlightedIndices = searchHighlight(&written_chars, &dup_row.cmdlen);
+        written_chars = sideScrollCharSet(&dup_row);
+        searchHighlight(&written_chars, &dup_row.cmdlen);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
-        written_chars = sideScrollCharSet(&dup_row, highlightedIndices);
+        written_chars = sideScrollCharSet(&dup_row);
+        highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       //if(searchFlag) searchHighlight(written_chars);
@@ -1156,7 +1177,7 @@ void statusWrite(char *message){
 }
 
 /*** Searching Methods ***/
-int* searchHighlight(char **chars, int *cmdlen){
+void searchHighlight(char **chars, int *cmdlen){
   //change this to a char **chars, we need it to actually reassign the memory pointed to
   //by E.rows[i].chars;
   //*cmdlen is used to keep track of how many of the characters within a row's characters
@@ -1175,8 +1196,8 @@ int* searchHighlight(char **chars, int *cmdlen){
   //foundWord = *chars;
   int index = 0;
   int searchOffset = 0;
-  int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int)); //create an array to keep track of which indices get highlighted
-  int indicesLen = 0;
+  //int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int)); //create an array to keep track of which indices get highlighted
+  //int indicesLen = 0;
   if(searchQuery != NULL){
     foundWord = strstr(*chars + index + searchOffset, searchQuery);
     while(foundWord != NULL){
@@ -1187,16 +1208,39 @@ int* searchHighlight(char **chars, int *cmdlen){
         //char **charsptr = &chars;
         insertStr(chars, "\x1b[48;5;226m", index);
         insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
-        highlightIndices[indicesLen] = index - *cmdlen;
+        //highlightIndices[indicesLen] = index - *cmdlen;
         (*cmdlen) += 15;
-        indicesLen++;
+        //indicesLen++;
         foundWord = strstr(*chars + index + searchOffset + 15, searchQuery);
       }
     }
   }
-  highlightIndices[indicesLen] = indicesLen; //tack on a new last element to indicate array's length
-  return highlightIndices;
+  //highlightIndices[indicesLen] = indicesLen; //tack on a new last element to indicate array's length
+  //return highlightIndices;
   //enableRawMode();
+}
+
+/*** Syntax Highlighting***/
+int* highlightSyntax(char **chars, int *cmdlen){
+  int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int));
+  int indicesLen = 0;
+  //find the number of keywords in a line
+  int keywordCount = 0;
+  char* foundWord;
+  for(int i = 0; i < 32; i++){
+    foundWord = strstr(*chars, c_keywords[i]);
+    while(foundWord != NULL){
+      keywordCount++;
+      (*cmdlen) += 14;
+      int index = foundWord - *chars;
+      highlightIndices[indicesLen] = index;
+      indicesLen++;
+      insertStr(chars, "\x1b[38;5;26m", index);
+      insertStr(chars, "\x1b[0m", index + 10 + strlen(c_keywords[i]));
+      foundWord = strstr(foundWord + strlen(c_keywords[i]), c_keywords[i]);
+    }
+  }
+  //---------------------------------------------------------------------------------
 }
 
 /*** Main Loop ***/
@@ -1210,9 +1254,9 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  //readFile("longline.txt");  //for debug purposes only
-  //clearScreen();
-  //writeScreen();
+  readFile("keywords.txt");  //for debug purposes only
+  clearScreen();
+  writeScreen();
 
   while(1){ //replace with 1 when developing
     char c = processKeypress();

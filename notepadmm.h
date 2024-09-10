@@ -32,7 +32,8 @@ void statusWrite(char *);
 long getFileSize(FILE *);
 void scrollRight(void);
 void scrollLeft(void);
-int* searchHighlight(char **, int *);
+void searchHighlight(char **, int *);
 void searchPrompt(void);
+int* highlightSyntax(char **, int *);
 
 #endif 
