@@ -217,6 +217,8 @@ char* sideScrollCharSet(row *row, int *highlightedIndices){
       }
     }
     //if(row->chars != NULL) add_cmd(row->chars + E.sidescroll + offset, 0);
+    //we MUST use substr because we have to return a different string, we can't return
+    //row->chars
     char *substr;
     substr = malloc(row->length - E.sidescroll + row->cmdlen - offset + 1); //+1 for null terminator
     strncpy(substr, row->chars + E.sidescroll + offset, (row->length - E.sidescroll) + row->cmdlen - offset);
@@ -836,9 +838,9 @@ void sortKeypress(char c){
   } else if (c == CTRL_KEY('s')){
     saveFile();
   }else if (c == CTRL_KEY('b')){
-    //if(searchFlag == 0) searchPrompt();
-    searchQuery[0] = 'a'; //for debug purposes only
-    searchQuery[1] = '\0';
+    if(searchFlag == 0) searchPrompt();
+    //searchQuery[0] = 'a'; //for debug purposes only
+    //searchQuery[1] = '\0';
     searchFlag = !searchFlag;
   } else { //one of the unmapped keys was pressed so just do nothing
     return;
@@ -1208,9 +1210,9 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  readFile("longline.txt");  //for debug purposes only
-  clearScreen();
-  writeScreen();
+  //readFile("longline.txt");  //for debug purposes only
+  //clearScreen();
+  //writeScreen();
 
   while(1){ //replace with 1 when developing
     char c = processKeypress();
