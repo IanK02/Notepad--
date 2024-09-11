@@ -40,6 +40,7 @@ typedef struct row {
   int length;
   size_t capacity;
   int cmdlen;
+  int commented;
 } row;
 
 struct editor {
@@ -191,13 +192,17 @@ void initEditor(char *filename){
   }
 }
 
-void free_all_rows(void){ //free all the text contained in the global editor E
+void free_all_rows(void){ //free all the text contained in the global editor E and the list of keywords
   for(int i = 0; i < E.numrows; i++){
     free(E.rows[i].chars);
     E.rows[i].chars = NULL;
   }
-
+  for(int i = 0; i < numKeywords; i++){
+    free(keywords[i]);
+    keywords[i] = NULL;
+  }
   free(E.rows);
+  free(keywords);
   E.rows = NULL;
 }
 
@@ -307,6 +312,7 @@ void initializeRowMemory(row *r, size_t capacity) {
     //ensure the first character of chars is null terminator and set length to 0
     r->chars[0] = '\0';
     r->length = 0;
+    r->commented = 0;
 }
 
 void appendRow(void) {
@@ -937,16 +943,19 @@ void writeScreen(void){
       //  if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       //}
       char* written_chars;
+      int commented;
       //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       //if(searchFlag) searchHighlight(written_chars);
@@ -955,16 +964,19 @@ void writeScreen(void){
     }
     if(E.rows[E.numrows-1].chars != NULL){ 
       char* written_chars;
-      int* highlightedIndices;
+      int commented;
+      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.numrows-1]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       free(dup_row.chars);
@@ -976,16 +988,19 @@ void writeScreen(void){
       //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
       //if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       char* written_chars;
-      int* highlightedIndices;
+      int commented;
+      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       //if(searchFlag) searchHighlight(written_chars);
@@ -998,16 +1013,19 @@ void writeScreen(void){
     //add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
     if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) {
       char* written_chars;
-      int* highlightedIndices;
+      int commented;
+      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.scroll + E.w.ws_row - 1]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
-        highlightSyntax(&written_chars, &dup_row.cmdlen);
+        commented = commentHighlight(&written_chars, &dup_row.cmdlen);
+        if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
       //if(searchFlag) searchHighlight(written_chars);
@@ -1271,7 +1289,7 @@ void searchHighlight(char **chars, int *cmdlen){
       //if(foundWord != NULL) strcat("\x1b[0m\x1b[48;5;226m", foundWord); //concatenate to the beginning of foundWord
       if(foundWord != NULL) {
         //char **charsptr = &chars;
-        insertStr(chars, "\x1b[48;5;226m", index);
+        insertStr(chars, "\x1b[48;5;160m", index);
         insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
         //highlightIndices[indicesLen] = index - *cmdlen;
         (*cmdlen) += 15;
@@ -1310,6 +1328,19 @@ void highlightSyntax(char **chars, int *cmdlen){
       }
     }
   }
+}
+
+int commentHighlight(char **chars, int *cmdlen){
+  char* foundWord;
+  foundWord = strstr(*chars, "//");
+  if(foundWord != NULL){
+    int index = foundWord - *chars;
+    insertStr(chars, "\x1b[38;5;22m", index);
+    insertStr(chars, "\x1b[0m", strlen(*chars));
+    (*cmdlen) += 14;
+    return 1;
+  }
+  return 0;
 }
 
 /*** Main Loop ***/

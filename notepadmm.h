@@ -36,5 +36,6 @@ void searchHighlight(char **, int *);
 void searchPrompt(void);
 void highlightSyntax(char **, int *);
 char** readTextArray(char *);
+int commentHighlight(char **, int *);
 
 #endif 
