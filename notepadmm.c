@@ -67,13 +67,14 @@ struct cmd_buf cbuf; //The global command buffer
 char *CURRENT_FILENAME;
 int searchFlag;
 char searchQuery[256];
-const char *c_keywords[] = {
-    "auto", "break", "case", "char", "const", "continue", "default", "do",
-    "double", "else", "enum", "extern", "float", "for", "goto", "if",
-    "inline", "int", "long", "register", "return", "short", "signed", 
-    "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned",
-    "void", "volatile", "while"
-};
+//const char *c_keywords[] = {
+//    "auto", "break", "case", "char", "const", "continue", "default", "do",
+//    "double", "else", "enum", "extern", "float", "for", "goto", "if",
+//    "inline", "int", "long", "register", "return", "short", "signed", 
+//    "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned",
+//    "void", "volatile", "while"
+//};
+char **c_keywords;
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -177,6 +178,7 @@ void initEditor(void){
 
   CURRENT_FILENAME = NULL; //set CURRENT_FILENAME to null to handle the case the user doesn't open a file
   searchFlag = 0; //set serachFlag initiallly to 0 since we won't be searching on initialization
+  c_keywords = readTextArray("ckeyword.txt");
 }
 
 void free_all_rows(void){ //free all the text contained in the global editor E
@@ -1165,6 +1167,57 @@ long getFileSize(FILE *file){
   return size;
 }
 
+char** readTextArray(char* filename){
+  //this method assumes the .txt file is in a format where each element of the array is on a separate line
+  FILE *file;
+  if((file = fopen(filename, "r")) == NULL){
+    printf("%s", "Failed to open file");
+    exit(1);
+  }
+  rewind(file);
+  long start_pos = ftell(file); //get starting position of pointer
+  int lines = 0;
+  char c;
+
+  while((c = fgetc(file)) != EOF){ //count the number of lines
+    if(c == '\n'){
+      lines++;
+   }
+  }
+
+  //if(lines > 0 ){ //count the last line which doesn't end with a \n
+  //  lines++;
+  //}
+
+  fseek(file, start_pos, SEEK_SET); //set file pointer back to beginning of file
+  char **words = malloc(lines * sizeof(char *)); //initialize our array of char pointers
+  //char buf[MAX_LINE_LENGTH]; //initialize a buffer to write the lines of the file into
+
+  //for(int i = 0; i < lines; i++){
+    
+  //}
+
+  if(strlen(filename) > 256){
+    printf("%s\n", "File name too large");
+    exit(1);
+  }
+
+  char *line = NULL; //pointer to hold the line read
+  size_t len = 0;   //size of the buffer
+  ssize_t read;      //number of characters read
+  int i = 0;
+  while((read = getline(&line, &len, file)) != -1){
+    words[i] = malloc(read); 
+    strncpy(words[i], line, read - 1);
+    words[i][read - 1] = '\0'; //ensure words[i] is null terminated
+    i++;
+  }
+  free(line);
+  fclose(file);
+  return words;
+}
+
+
 /*** Status Bar Methods ***/
 void statusWrite(char *message){
   E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
@@ -1221,8 +1274,8 @@ void searchHighlight(char **chars, int *cmdlen){
 }
 
 /*** Syntax Highlighting***/
-int* highlightSyntax(char **chars, int *cmdlen){
-  int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int));
+void highlightSyntax(char **chars, int *cmdlen){
+  //int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int));
   int indicesLen = 0;
   //find the number of keywords in a line
   int keywordCount = 0;
@@ -1233,14 +1286,13 @@ int* highlightSyntax(char **chars, int *cmdlen){
       keywordCount++;
       (*cmdlen) += 14;
       int index = foundWord - *chars;
-      highlightIndices[indicesLen] = index;
+      //highlightIndices[indicesLen] = index;
       indicesLen++;
       insertStr(chars, "\x1b[38;5;26m", index);
       insertStr(chars, "\x1b[0m", index + 10 + strlen(c_keywords[i]));
-      foundWord = strstr(foundWord + strlen(c_keywords[i]), c_keywords[i]);
+      foundWord = strstr(*chars + index + 14 + strlen(c_keywords[i]), c_keywords[i]);
     }
   }
-  //---------------------------------------------------------------------------------
 }
 
 /*** Main Loop ***/
@@ -1254,9 +1306,9 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  readFile("keywords.txt");  //for debug purposes only
-  clearScreen();
-  writeScreen();
+  //readFile("keywords.txt");  //for debug purposes only
+  //clearScreen();
+  //writeScreen();
 
   while(1){ //replace with 1 when developing
     char c = processKeypress();

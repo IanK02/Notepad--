@@ -34,6 +34,7 @@ void scrollRight(void);
 void scrollLeft(void);
 void searchHighlight(char **, int *);
 void searchPrompt(void);
-int* highlightSyntax(char **, int *);
+void highlightSyntax(char **, int *);
+char** readTextArray(char *);
 
 #endif 
