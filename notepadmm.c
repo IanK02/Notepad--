@@ -923,6 +923,7 @@ void clearScreen(void){
 
   write(STDOUT_FILENO, "\x1b[1J", 4); //clear the entire screen
   write(STDOUT_FILENO, "\x1b[H", 3); //rest cursor to top left(visible change)
+  free(move_cmd);
 }
 
 void writeScreen(void){
@@ -961,6 +962,7 @@ void writeScreen(void){
       //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
+      free(written_chars);
     }
     if(E.rows[E.numrows-1].chars != NULL){ 
       char* written_chars;
@@ -980,6 +982,7 @@ void writeScreen(void){
         add_cmd(written_chars, 0);
       }
       free(dup_row.chars);
+      free(written_chars);
       //if(searchFlag) searchHighlight(written_chars);
     }
   } else {
@@ -1006,6 +1009,7 @@ void writeScreen(void){
       //if(searchFlag) searchHighlight(written_chars);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
+      free(written_chars);
     }
     //if(E.numrows-E.scroll >= E.w.ws_row){
     //  add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
@@ -1028,6 +1032,8 @@ void writeScreen(void){
         if(commented == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
         add_cmd(written_chars, 0);
       }
+      free(dup_row.chars);
+      free(written_chars);
       //if(searchFlag) searchHighlight(written_chars);
     }
   }
@@ -1358,9 +1364,9 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  //readFile("hello.py");  //for debug purposes only
-  //clearScreen();
-  //writeScreen();
+  readFile("hello.py");  //for debug purposes only
+  clearScreen();
+  writeScreen();
 
   while(1){ //replace with 1 when developing
     char c = processKeypress();
