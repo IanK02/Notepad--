@@ -5,7 +5,7 @@
 void add_cmd(char *, int);
 void writeCmds(void);
 void getWinSize(void);
-void initEditor(void);
+void initEditor(char *);
 void exitRawMode(void);
 void enableRawMode(void);
 void appendRow(void);

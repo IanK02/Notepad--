@@ -74,7 +74,8 @@ char searchQuery[256];
 //    "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned",
 //    "void", "volatile", "while"
 //};
-char **c_keywords;
+char **keywords;
+int numKeywords;
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -155,7 +156,7 @@ void exitRawMode(void){
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.termios_o);
 }
 
-void initEditor(void){
+void initEditor(char *filename){
   //initialize the global editor object's values as well as clear screen and set cursor at starting position
   E.rows = NULL; //initialize rows to null as no text is present yet
   E.numrows = 0;
@@ -178,7 +179,16 @@ void initEditor(void){
 
   CURRENT_FILENAME = NULL; //set CURRENT_FILENAME to null to handle the case the user doesn't open a file
   searchFlag = 0; //set serachFlag initiallly to 0 since we won't be searching on initialization
-  c_keywords = readTextArray("ckeyword.txt");
+  if(filename[strlen(filename) - 1] == 'c'){
+    keywords = readTextArray("ckeyword.txt");
+  } else if (filename[strlen(filename) - 2] == 'p' && filename[strlen(filename) - 1] == 'y'){
+    keywords = readTextArray("pykeyword.txt");
+  } else if (filename[strlen(filename) - 2] == 'v' && filename[strlen(filename) - 1] == 'a'){
+    keywords = readTextArray("javakeyword.txt");
+  } else {
+    keywords = NULL;
+    numKeywords = 0;
+  }
 }
 
 void free_all_rows(void){ //free all the text contained in the global editor E
@@ -850,12 +860,12 @@ void sortKeypress(char c){
   } else if (c == CTRL_KEY('s')){
     saveFile();
   }else if (c == CTRL_KEY('b')){
-    //if(searchFlag == 0) searchPrompt();
-    searchQuery[0] = 'v'; //for debug purposes only
-    searchQuery[1] = 'o';
-    searchQuery[2] = 'i';
-    searchQuery[3] = 'd';
-    searchQuery[4] = '\0';
+    if(searchFlag == 0) searchPrompt();
+    //searchQuery[0] = 'v'; //for debug purposes only
+    //searchQuery[1] = 'o';
+    //searchQuery[2] = 'i';
+    //searchQuery[3] = 'd';
+    //searchQuery[4] = '\0';
     searchFlag = !searchFlag;
   } else { //one of the unmapped keys was pressed so just do nothing
     return;
@@ -1191,6 +1201,7 @@ char** readTextArray(char* filename){
 
   fseek(file, start_pos, SEEK_SET); //set file pointer back to beginning of file
   char **words = malloc(lines * sizeof(char *)); //initialize our array of char pointers
+  //the +1 is because words[0] will contain the number of keywords
   //char buf[MAX_LINE_LENGTH]; //initialize a buffer to write the lines of the file into
 
   //for(int i = 0; i < lines; i++){
@@ -1214,6 +1225,7 @@ char** readTextArray(char* filename){
   }
   free(line);
   fclose(file);
+  numKeywords = lines;
   return words;
 }
 
@@ -1280,17 +1292,22 @@ void highlightSyntax(char **chars, int *cmdlen){
   //find the number of keywords in a line
   int keywordCount = 0;
   char* foundWord;
-  for(int i = 0; i < 32; i++){
-    foundWord = strstr(*chars, c_keywords[i]);
+  for(int i = 0; i < numKeywords; i++){
+    foundWord = strstr(*chars, keywords[i]);
+    //if((foundWord != NULL && foundWord == *chars) || (foundWord != NULL && (int)*(foundWord - 1) == 32))
     while(foundWord != NULL){
       keywordCount++;
-      (*cmdlen) += 14;
       int index = foundWord - *chars;
       //highlightIndices[indicesLen] = index;
       indicesLen++;
-      insertStr(chars, "\x1b[38;5;26m", index);
-      insertStr(chars, "\x1b[0m", index + 10 + strlen(c_keywords[i]));
-      foundWord = strstr(*chars + index + 14 + strlen(c_keywords[i]), c_keywords[i]);
+      if((foundWord != NULL && foundWord == *chars) || (foundWord != NULL && (int)*(foundWord - 1) == 32)){
+        insertStr(chars, "\x1b[38;5;26m", index);
+        insertStr(chars, "\x1b[0m", index + 10 + strlen(keywords[i]));
+        (*cmdlen) += 14;
+        foundWord = strstr(*chars + index + 14 + strlen(keywords[i]), keywords[i]);
+      } else{
+        foundWord = strstr(*chars + index + strlen(keywords[i]), keywords[i]);
+      }
     }
   }
 }
@@ -1298,7 +1315,11 @@ void highlightSyntax(char **chars, int *cmdlen){
 /*** Main Loop ***/
 int main(int argc, char *argv[]){
   enableRawMode();
-  initEditor();
+  if(argc == 2){
+    initEditor(argv[1]);
+  } else {
+    initEditor("hello.py");
+  }
   if(argc == 2){
     char *filename = argv[1];
     readFile(filename);
@@ -1306,7 +1327,7 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  //readFile("keywords.txt");  //for debug purposes only
+  //readFile("hello.py");  //for debug purposes only
   //clearScreen();
   //writeScreen();
 

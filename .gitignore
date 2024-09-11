@@ -9,3 +9,5 @@ getline.c
 getline
 mobydick.txt
 *.txt
+*.java
+*.py
