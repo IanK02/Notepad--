@@ -36,6 +36,10 @@ void searchHighlight(char **, int *);
 void searchPrompt(void);
 void highlightSyntax(char **, int *);
 char** readTextArray(char *);
-int commentHighlight(char **, int *);
+int inlineCommentHighlight(char **, int *);
+void multilineCommentHighlight(char **, int *, int *);
+void endMultiline(char **, int *, int *);
+int* markMultilineRows(void);
+void commentEntireRow(char **, int *);
 
 #endif 
