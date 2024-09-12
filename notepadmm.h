@@ -25,22 +25,20 @@ void writeScreen(void);
 void removeRow(int);
 void free_all_rows(void);
 void readFile(char *);
-void basicRead(const char *);
 void saveFile(void);
 void writeFile(char *);
 void statusWrite(char *);
 long getFileSize(FILE *);
 void scrollRight(void);
 void scrollLeft(void);
-void searchHighlight(char **, int *);
+void searchHighlight(char **);
 void searchPrompt(void);
-void highlightSyntax(char **, int *, int);
+void highlightSyntax(char **, int);
 char** readTextArray(char *);
-int inlineCommentHighlight(char **, int *);
-void multilineCommentHighlight(char **, int *);
-void endMultiline(char **, int *, int *);
+int inlineCommentHighlight(char **);
+void multilineCommentHighlight(char **);
 int* markMultilineRows(void);
-void commentEntireRow(char **, int *);
+void commentEntireRow(char **);
 int checkKeywordHighlight(char *, char *, int);
 
 #endif 
