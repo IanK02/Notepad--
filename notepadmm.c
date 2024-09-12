@@ -67,13 +67,6 @@ struct cmd_buf cbuf; //The global command buffer
 char *CURRENT_FILENAME;
 int searchFlag;
 char searchQuery[256];
-//const char *c_keywords[] = {
-//    "auto", "break", "case", "char", "const", "continue", "default", "do",
-//    "double", "else", "enum", "extern", "float", "for", "goto", "if",
-//    "inline", "int", "long", "register", "return", "short", "signed", 
-//    "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned",
-//    "void", "volatile", "while"
-//};
 char **keywords;
 int numKeywords;
 
@@ -104,25 +97,11 @@ void add_cmd(char *cmd, int last_cmd){
     }else{
       memcpy(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len); 
     }
-    //snprintf(cbuf.cmds + cbuf.len - cmd_len, cmd_len, "%s", cmd);
-    //write(cbuf.cmds + cbuf.len - cmd_len, cmd, cmd_len);
   }
 }
 
 void writeCmds(void){
-  //cbuf.cmds = realloc(cbuf.cmds, cbuf.len + 1);
-  //cbuf.cmds[cbuf.len] = '\0'; //ensure cbuf is null terminated
   write(STDOUT_FILENO, cbuf.cmds, cbuf.len);
-  //char *start = cbuf.cmds;
-  //char *end;
-  //for(int i = E.scroll; i < E.numrows - E.scroll; i++){
-  //  end = strstr(start, "\r\n");
-  //  if(end != NULL){
-  //    write(STDOUT_FILENO, start, end-start + 2);
-  //    start = end + 2;
-  //    //end += 2;
-  //  }
-  //}
   cbuf.len = 0; //set len back to 0
   //cbuf.cmds = NULL; //reduce cmds back to NULL
   free(cbuf.cmds);
@@ -210,39 +189,12 @@ char* sideScrollCharSet(row *row){
   int offset = 0;
   int offScreenFlag = 0;
   if((row->length - E.sidescroll) >= E.w.ws_col){
-    //in this context offset counts how many highlighted letters are to be printed
-    //int offset = 0;
-    //char start = *(row->chars + E.sidescroll + offset);
-    //if((int)start == 91 && E.sidescroll > 0){
-    //  char oneBehind = *(row->chars + E.sidescroll + offset - 1);
-    //  if((int)oneBehind == 27){
-    //    offset += 14 + strlen(searchQuery);
-    //  }
-    //}
-
-    //for(int i = 0; i < row->cmdlen / 15; i++){
-    //  if(highlightedIndices[i] >= E.sidescroll && highlightedIndices[i] < E.sidescroll + E.w.ws_col){
-    //    offset += 15;
-    //  }
-      
-    //}
     char *substr;
     substr = malloc(E.w.ws_col + offset + 1); //+1 for null terminator
     strncpy(substr, row->chars + E.sidescroll + row->cmdlen - offset, E.w.ws_col + offset); //copy chars over to substr
-
     substr[E.w.ws_col + offset] = '\0'; //ensure substr is null termirnated
-    //add_cmd(substr, 0);
     return substr;
   } else if(E.sidescroll <= row->length){
-    //in this context offset counts how many highlighted letters are behind sidescroll
-    //for(int i = 0; i < row->cmdlen / 15; i++){
-    //  if(highlightedIndices[i] < E.sidescroll){
-    //    offset += 15;
-    //  }
-    //}
-    //if(row->chars != NULL) add_cmd(row->chars + E.sidescroll + offset, 0);
-    //we MUST use substr because we have to return a different string, we can't return
-    //row->chars
     char *substr;
     substr = malloc(row->length - E.sidescroll + row->cmdlen - offset + 1); //+1 for null terminator
     strncpy(substr, row->chars + E.sidescroll + offset, (row->length - E.sidescroll) + row->cmdlen - offset);
@@ -328,9 +280,7 @@ void appendRow(void) {
 
 void deleteExistingRow(void){
   if(E.rows[E.numrows-1].chars != NULL) free(E.rows[E.numrows-1].chars); //free the chars of the bottom row
-  //free(&E.rows[E.numrows-1]);
   E.numrows--; //decrement number of rows
-  //E.rows = realloc(E.rows, sizeof(row) * E.numrows); //reallocate the memory of rows to accomodate the new array size
   if (E.rows == NULL) { //check if reallocation was successful
       printf("Memory allocation failed\n");
       exit(1);
@@ -343,34 +293,10 @@ void shiftRowsDown(int index){ //shift all rows up to index down 1
     E.rows[i] = E.rows[i-1];
   }
 
-  //if(E.rows[index+1].capacity < E.rows[index].capacity){
-  //  E.rows[index+1].chars = realloc(E.rows[index+1].chars, E.rows[index].capacity);
-  //  E.rows[index+1].capacity = E.rows[index].capacity;
-  //} 
-
   row dup_row = duplicate_row(&E.rows[index]);
 
   //free(E.rows[index+1].chars);
   E.rows[index+1] = dup_row;
-  //memcpy(E.rows[index+1].chars, E.rows[index].chars, E.rows[index].length + 1);
-  //E.rows[index+1].length = E.rows[index].length;
-  //char *copybuf;
-  //copybuf = malloc(E.rows[index].capacity); //create a buffer to copy the chars of row at index
-  //to copyrow, this way the row at index and the row below index don't both
-  //point to the same block of memory
-
-  //memcpy(copybuf, E.rows[index].chars, E.rows[index].length + 1); //+1 for null terminator
-  //copybuf[E.rows[index].length] = '\0'; //ensure copybuf is null terminated
-  
-  //free(E.rows[index+1].chars); //free the old chars of rows[index+1]
-  //E.rows[index+1].chars = copybuf; //set the chars of copyrow to copybuf
-  //E.rows[index+1].capacity = E.rows[index].capacity; //set capacity of copyrow to row above
-  //E.rows[index+1].length = E.rows[index].length; //set length of copyrow to row above
-
-  //E.rows[index+1] = copyrow; //set row at index + 1 to copyrow
-
-  //free(E.rows[index+1].chars); //free the old chars of rows[index+1]
-  //free(copybuf); //free copybuf
 }
 
 void shiftRowsUp(int index){
@@ -382,30 +308,11 @@ void shiftRowsUp(int index){
   int lowrow = E.numrows - 1;
 
   if((E.numrows - index) > 1){
-    //if(E.rows[lowrow-1].capacity < E.rows[lowrow].capacity){
-    //  E.rows[lowrow-1].chars = realloc(E.rows[lowrow-1].chars, E.rows[lowrow].capacity);
-    //  E.rows[lowrow-1].capacity = E.rows[lowrow].capacity;
-    //}
     row dup_row = duplicate_row(&E.rows[lowrow]);
 
-    //free(E.rows[lowrow-1].chars);
     E.rows[lowrow-1] = dup_row;
-    //memcpy(E.rows[lowrow-1].chars, E.rows[lowrow].chars, E.rows[lowrow].length + 1);
-    //E.rows[lowrow-1].length = E.rows[lowrow].length;
   }
 
-  //char *copybuf;
-  //copybuf = malloc(E.rows[lowrow-1].capacity); //create a buffer to copy the chars of row at index
-  //to copyrow, this way the row at index and the row below index don't both
-  //point to the same block of memory
-
-  //memcpy(copybuf, E.rows[lowrow-1].chars, E.rows[lowrow-1].length + 1); //+1 for null terminator
-  //copybuf[E.rows[lowrow-1].length] = '\0'; //ensure copybuf is null terminated
-  
-  //free(E.rows[lowrow].chars); //free the old chars of rows[lowrow]
-  //E.rows[lowrow].chars = copybuf; //set the chars of copyrow to copybuf
-  //E.rows[lowrow].capacity = E.rows[lowrow-1].capacity; //set capacity of copyrow to row above
-  //E.rows[lowrow].length = E.rows[lowrow-1].length; //set length of copyrow to row above
 }
 
 void addRow(void){ //make a new row of text that is actually visible
@@ -417,7 +324,6 @@ void addRow(void){ //make a new row of text that is actually visible
       appendRow();
       shiftRowsDown(cy-1);
 
-      //E.rows[E.Cy].chars[0] = '\0'; //initialize row below current row to empty
       memset(E.rows[cy].chars, 0, E.rows[cy].capacity);
       E.rows[cy].chars[0] = '\0';
       E.rows[cy].length = 0;
@@ -429,10 +335,6 @@ void addRow(void){ //make a new row of text that is actually visible
     appendRow();
 
     int copy_length = E.rows[cy-1].length - (E.Cx-1) + 1; //the length of how much of the string to move to the next row down
-    //if(E.rows[E.Cy].length + copy_length + 1 > E.rows[E.Cy].capacity){
-    //  E.rows[E.Cy].chars = realloc(E.rows[E.Cy].chars, E.rows[E.Cy].capacity + copy_length + 1);
-    //  E.rows[E.Cy].capacity += copy_length + 1;
-    //}
 
     shiftRowsDown(cy-1);
 
@@ -442,24 +344,9 @@ void addRow(void){ //make a new row of text that is actually visible
 
     memcpy(E.rows[cy].chars, E.rows[cy-1].chars + E.Cx - 1, copy_length);
     E.rows[cy].length = copy_length - 1;
-    //char *copy_buf;
-    //copy_buf = malloc(copy_length); //allocate enough bytes for a buffer to store the part of the row to move
 
-    //memcpy(copy_buf, E.rows[E.Cy-1].chars + E.rows[E.Cy-1].length - copy_length+1, copy_length-1); 
-    //copy everything after the cursor to copy_buf
-    
-    //copy_buf[copy_length-1]='\0'; //ensure copy_buf is null terminated
-    //shiftRowsDown(E.Cy-1); //shift all rows down
-
-    //free(E.rows[E.Cy].chars); //free old chars of E.Cy row
-    //E.rows[E.Cy].chars = copy_buf; //set row below current row to copy_buf
-    //memmove(E.rows[E.Cy].chars, copy_buf, copy_length);
-    //E.rows[E.Cy].length = copy_length-1;
-    
     E.rows[cy-1].chars[E.Cx-1] = '\0'; //cut off the current row at cursor position
     E.rows[cy-1].length = E.Cx-1; //decrement the current row's length
-    //E.rows[E.Cy-1].chars = realloc(E.rows[E.Cy-1].chars, E.rows[E.Cy-1].length); //reallocate current row's memory
-
     incrementCursor(0,1,0,0); //move cursor down
     
   }else if (E.Cx-1 == 0){ //cursor at beginning of row, can be any row
@@ -478,43 +365,23 @@ void addRow(void){ //make a new row of text that is actually visible
 }
 
 void removeRow(int backSpace){
-  //if(E.Cx - 1 == 0 && E.Cy - 1 >= 0){ //check that cursor is at far left of the screen and not on the highest row
-  //  shiftRowsUp(E.Cy-1); //shift all rows up one 
-  //  deleteExistingRow(); 
-  //}
   if(backSpace){
     if(E.rows[E.Cy-2].length != 0) E.Cx = E.rows[E.Cy-2].length + 1;
-    //if(E.Cy-1 != ())
     incrementCursor(1,0,0,0); //increment cursor u
     int cy = E.Cy;
-    //copy everything in front of the cursor
-    //int copy_length = E.rows[E.Cy-1].length + 1; //+1 for null terminator
-    //char *copy_buf;
-    //copy_buf = malloc(E.rows[E.Cy-1].capacity); //allocate enough bytes for a buffer to store the part of the row to move
-    //memcpy(copy_buf, E.rows[E.Cy-1].chars, copy_length); //write the current row to copy_buf
-    //copy_buf[copy_length-1] = '\0'; //ensure copy_buf is null terminated
 
     if(E.rows[cy-1].length + E.rows[cy].length + 1 >= E.rows[cy-1].capacity){
       E.rows[cy-1].chars = realloc(E.rows[cy-1].chars, E.rows[cy-1].capacity + E.rows[cy].length + 1);
       E.rows[cy-1].capacity += E.rows[cy].length + 1;
     }
 
-
     memcpy(E.rows[cy-1].chars + E.rows[cy-1].length, E.rows[cy].chars, E.rows[cy].length + 1);
     E.rows[cy-1].length += E.rows[cy].length;
-
-    //if(E.rows[cy-2].length > E.rows[cy-1].length){
-    //  E.Cx = E.rows[cy-2].length;  
-    //} else {
-    //  E.Cx = 1;
-    //}
-    //if(E.Cx == 0) E.Cx = 1; //make sure Cx isn't 0
 
     memset(E.rows[cy].chars, 0, E.rows[cy].capacity);
     E.rows[cy].chars[0] = '\0';
     E.rows[cy].length = 0;
     
-    //memcpy(E.rows[E.Cy-1].chars + E.Cx - 1, copy_buf, copy_length); //write copy_buf to the end of the new row
     shiftRowsUp(E.Cy); //shift all rows up one up to the row below the current row
     deleteExistingRow(); //delete the bottom row
 
@@ -562,33 +429,19 @@ void incrementCursor(int up, int down, int left, int right){
 }   
 
 void moveCursor(char c, char *buf){
-    //char *buf = malloc(3); //three character buffer to store all three characters of the arrow key commands
-    //buf[0] = c;
-    //read(STDIN_FILENO, buf + 1, 1); //read next byte of input into buf
-    //read(STDIN_FILENO, buf + 2, 1); //read one more byte of input into buf
-    //buf will now contain c at buf[0], the byte(from user input) after c at buf[1], and the one after that at buf[2]
-
     switch (buf[2])
     {
     case 'A': //up arrow
         incrementCursor(1,0,0,0); //increment the cursor's coordinates(stored in the global editor E)
-
-        //cursor_move_cmd();
         break;
     case 'B': //down arrow
         if(E.Cy <= E.numrows - 1) incrementCursor(0,1,0,0); //limit cursor to one above the lowest row
-
-        //cursor_move_cmd();
         break;
     case 'C': //right arrow
         if(E.Cx <= E.rows[E.Cy-1].length) incrementCursor(0,0,0,1); //limit cursor at only one space further right than the text
-
-        //cursor_move_cmd();
         break;
     case 'D': //left arrow
         incrementCursor(0,0,1,0);
-
-        //cursor_move_cmd();
         break;
     default:
         break;
@@ -649,8 +502,6 @@ void insertStr(char **original, char* insert, size_t index){
 
   free(*original);
   *original = result;
-  //free(original);
-  //return original;
 }
 
 void shiftLineCharsR(int index, row *row){ //shift all characters in a row to the right by one, at index two characters will be identical,
@@ -710,16 +561,6 @@ void addPrintableChar(char c) {
 }
 
 void tabPressed(){ //add checking if tab will push text further past row limit
-  //add a space four times or less if we don't have the space
-  //if((E.rows[E.Cy-1].length + 4 < E.w.ws_col)){
-  //  for(int i = 0; i < 4; i++){
-  //    addPrintableChar(' ');
-  //  }
-  //} else if(E.rows[E.Cy-1].length < E.w.ws_col){
-  //  for(int i = 0; i < E.w.ws_col - E.rows[E.Cy-1].length - 1; i++){
-  //    addPrintableChar(' ');
-  //  }
-  //}
   for(int i = 0; i < 4; i++){
     addPrintableChar(' ');
   }
@@ -738,19 +579,7 @@ void backspacePrintableChar(void) {
         size_t new_capacity = currentRow->length + 1;
         //make sure we don't drop below MIN_ROW_CAPACITY
         if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-        
-        /*** These Lines were the cause of lots of problems, do not reallocate to make a smaller row, it's not worth the trouble***/
-        //reallocate row size
-        //char *new_chars = realloc(currentRow->chars, new_capacity);
-        //if (new_chars == NULL) {
-        //    //handle memory allocation failure
-        //    return;
-        //}
-
-        //assign global editor's row chars to new_chars
-        //currentRow->chars = new_chars;
-        //---------------------------------------------------------------------------------------
-        
+             
         //delete the last character
         currentRow->chars[currentRow->length] = '\0';
         //decrement character to account for the new shorter row
@@ -775,24 +604,10 @@ void deletePrintableChar(void){
         //make sure we don't drop below MIN_ROW_CAPACITY
         if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
         
-        //reallocate row size
-        //char *new_chars = realloc(currentRow->chars, new_capacity);
-        //if (new_chars == NULL) {
-        //    //handle memory allocation failure
-        //    return;
-        //}
-
-        //assign global editor's row chars to new_chars
-        //currentRow->chars = new_chars;
-        //delete the last character
         currentRow->chars[currentRow->length] = '\0';
         //DO NOT decrement character to account for the new shorter row
         //this is how delete is different from backspace
     }
-}
-
-char* getSubstring(row *original){
-
 }
 
 /*** User Input Processing ***/
@@ -802,7 +617,6 @@ void searchPrompt(void){ //prompt the user for what word they want to search for
   statusWrite("");
 
   exitRawMode();
-  //memset(searchQuery, 0, sizeof(searchQuery));
   fgets(searchQuery, sizeof(searchQuery), stdin);
   searchQuery[strcspn(searchQuery, "\n")] = '\0';
   enableRawMode();
@@ -826,7 +640,6 @@ void sortEscapes(char c){
             removeRow(0);
         }
     } else { //arrow key was pressed 
-        //read(STDIN_FILENO, buf + 2, 1); //read one more byte of input into buf
         moveCursor(c, buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
         //read in the rest of the command buffer, so that's why we use a separate moveCursor function
     }
@@ -846,7 +659,6 @@ void sortKeypress(char c){
    * Each of these (1-5) will have their own function(s), which sortKeypress will call
    */
   int ascii_code = (int)c;
-  //write(STDOUT_FILENO, &c, 1);
   if(ascii_code >= 32 && ascii_code < 127){ //the character inputted is a printable character, including space!
     addPrintableChar(c);
   } else if (ascii_code == 13){ //user pressed enter
@@ -880,7 +692,6 @@ void sortKeypress(char c){
 /*** Visible Output ***/
 void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     write(STDOUT_FILENO, "\x1b[?25l", 6); //make cursor invisible
-    //add_cmd("\x1b[?25l"); //make cursor inivisble
     int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx)+1;
     char *buf = malloc(buf_size);
     if(buf == NULL){
@@ -888,10 +699,7 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
     }
     snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy-E.scroll, E.Cx - E.sidescroll);
     write(STDOUT_FILENO, buf, buf_size-1); //move cursor to location specified by Cx and Cy
-    //add_cmd(buf, 0);
     write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
-    //add_cmd("\x1b[?25h"); //make cursor visible
-    //add_cmd(buf);
 
     if (buf != NULL) { //null check before freeing
       free(buf);
@@ -904,7 +712,6 @@ char processKeypress(void){
   //This function will read a key pressed from the user and return it, no more
     char c = '\0';
     read(STDIN_FILENO, &c, 1);
-    //printf("%c;%u\r\n", c, c);
     if(c == CTRL_KEY('c')){ //used to check if key pressed was CTRL-C which is the key to close the editor
         write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
         write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
@@ -933,36 +740,18 @@ void writeScreen(void){
   markedRows = markMultilineRows(); //mark all the rows highlighted by a multiline comment
   if(E.numrows - E.scroll < E.w.ws_row){
     for(int i = E.scroll; i < E.numrows - 1; i++){
-      //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
-      //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
-      //if(E.rows[i].length > E.w.ws_col){
-      //  char *substr;
-      //  substr = malloc(E.w.ws_col + 1); //+1 for null terminator
-      //  strncpy(substr, E.rows[i].chars, E.w.ws_col); //copy chars over to substr
-      //  substr[E.w.ws_col] = '\0'; //ensure substr is null termirnated
-      //  add_cmd(substr, 0);
-      //} else {
-      //  if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
-      //}
       char* written_chars;
       int commented; //the index at which a // occurs if it does
-      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
         if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //add_cmd(written_chars, 0);
       }
       if(markedRows[i]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
@@ -973,55 +762,36 @@ void writeScreen(void){
     if(E.rows[E.numrows-1].chars != NULL){ 
       char* written_chars;
       int commented;
-      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.numrows-1]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
         if(markedRows[E.numrows-1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         if(markedRows[E.numrows-1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //add_cmd(written_chars, 0);
       }
       if(markedRows[E.numrows-1]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
       free(dup_row.chars);
       free(written_chars);
-      //if(searchFlag) searchHighlight(written_chars);
     }
   } else {
     for(int i = E.scroll; i < E.scroll + E.w.ws_row - 1; i++){
-      //write(STDOUT_FILENO, E.rows[i].chars, E.rows[i].length); //write each row within the dynamic array of rows to the screen
-      //write(STDOUT_FILENO, "\r\n", 2); //new row and carriage return between rows
-      //if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       char* written_chars;
       int commented;
-      //int multiline;
-      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
         if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //add_cmd(written_chars, 0);
       }
       if(markedRows[i]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
@@ -1029,45 +799,27 @@ void writeScreen(void){
       free(dup_row.chars);
       free(written_chars);
     }
-    //if(E.numrows-E.scroll >= E.w.ws_row){
-    //  add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
-    //}
-    //add_cmd(E.rows[E.scroll + E.w.ws_row - 1].chars, 0);
     if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) {
       char* written_chars;
       int commented;
-      //int multiline;
-      //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[E.scroll + E.w.ws_row - 1]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
         if(commented == 0 && markedRows[E.scroll + E.w.ws_row - 1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //if(commented != -1) written_chars += commented;
         if(markedRows[E.scroll + E.w.ws_row - 1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
-        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        //add_cmd(written_chars, 0);
       }
       if(markedRows[E.scroll + E.w.ws_row - 1]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
       free(dup_row.chars);
       free(written_chars);
-      //if(searchFlag) searchHighlight(written_chars);
     }
   }
-  //add_cmd("\r\n", 0);
-  //printf("%s", cbuf.cmds);
   writeCmds();
-  //printing for debugging purposes
-  //for(int i = 0; i < E.numrows; i++){
-  //  printf("%s\n\r", E.rows[i]);
-  //}
   cursor_move_cmd(); //move cursor to current cursor position(visible change)
   free(markedRows);
 }
@@ -1091,14 +843,11 @@ void readFile(char *filename) {
     ssize_t read;      //number of characters read
     if((read = getline(&line, &len, current_file)) != -1){//do a getline call once without appendRow since a row is appended during initEditor()
       setChars(E.rows, line, read-1);//-1 to exclude the \n because writeScreen will add it
-      //write(STDOUT_FILENO, line, len+1);
     }
 
     while ((read = getline(&line, &len, current_file)) != -1) {
         appendRow(); //add a new row
         setChars(&E.rows[E.numrows-1], line, read-1); //-1 to exclude the \n because writeScreen will add it
-        //write(STDOUT_FILENO, line, len+1);
-        //printf("%s", line);
     }
     setChars(&E.rows[E.numrows-1], line, E.rows[E.numrows-1].length + 1); //add on the last character of the file
 
@@ -1148,21 +897,9 @@ void manualRead(const char *filename) {
 }
 
 void saveFile(void){
-  //E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
-  //E.Cx = 1;
-  //cursor_move_cmd(); //move the cursor
-
-  //char *ask_filename;
-  //ask_filename = malloc(11 + strlen(CURRENT_FILENAME) + 1);
-  //sprintf(ask_filename, "Filename: %s", CURRENT_FILENAME);
-
-  //write(STDOUT_FILENO, ask_filename, strlen(ask_filename)); //prompt user for filename
-  //printf("%s", "Filename: ");
   statusWrite("Filename: ");
   
   char filename[MAX_FILENAME];
-
-  //strcpy(filename, "other.txt"); //set default filename to the file that is currently open
 
   exitRawMode(); //temporarily turn off RawMode
   if (fgets(filename, sizeof(filename), stdin) != NULL) {
@@ -1189,11 +926,9 @@ void saveFile(void){
       } else if(strlen(filename) > 0){
         writeFile(filename);
       }
-      //printf("You entered: %s\n", filename);
   }
   enableRawMode();
   E.Cy = E.scroll+1; //snap cursor back to top of screen
-  //free(ask_filename);
 }
 
 void writeFile(char *filename){
@@ -1250,12 +985,6 @@ char** readTextArray(char* filename){
 
   fseek(file, start_pos, SEEK_SET); //set file pointer back to beginning of file
   char **words = malloc(lines * sizeof(char *)); //initialize our array of char pointers
-  //the +1 is because words[0] will contain the number of keywords
-  //char buf[MAX_LINE_LENGTH]; //initialize a buffer to write the lines of the file into
-
-  //for(int i = 0; i < lines; i++){
-    
-  //}
 
   if(strlen(filename) > 256){
     printf("%s\n", "File name too large");
@@ -1292,62 +1021,35 @@ void statusWrite(char *message){
 
 /*** Searching Methods ***/
 void searchHighlight(char **chars, int *cmdlen){
-  //change this to a char **chars, we need it to actually reassign the memory pointed to
-  //by E.rows[i].chars;
-  //*cmdlen is used to keep track of how many of the characters within a row's characters
-  //are unprintable commands
-
-  //statusWrite("");
-  //exitRawMode();
-  //char searchQuery[1000];
-
   char *foundWord;
-  //searchQuery[0] = 'a';
-  //searchQuery[1] = '\0';
-  //searchQuery[2] = '\0';
-  //searchQuery[3] = '\0';
-  //searchQuery[4] = '\0';
-  //foundWord = *chars;
   int index = 0;
   int searchOffset = 0;
-  //int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int)); //create an array to keep track of which indices get highlighted
-  //int indicesLen = 0;
   if(searchQuery != NULL){
     foundWord = strstr(*chars + index + searchOffset, searchQuery);
     while(foundWord != NULL){
       searchOffset = strlen(searchQuery);
       index = foundWord - *chars;
-      //if(foundWord != NULL) strcat("\x1b[0m\x1b[48;5;226m", foundWord); //concatenate to the beginning of foundWord
       if(foundWord != NULL) {
-        //char **charsptr = &chars;
         insertStr(chars, "\x1b[48;5;160m", index);
         insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
-        //highlightIndices[indicesLen] = index - *cmdlen;
         (*cmdlen) += 15;
-        //indicesLen++;
         foundWord = strstr(*chars + index + searchOffset + 15, searchQuery);
       }
     }
   }
-  //highlightIndices[indicesLen] = indicesLen; //tack on a new last element to indicate array's length
-  //return highlightIndices;
-  //enableRawMode();
 }
 
 /*** Syntax Highlighting***/
 void highlightSyntax(char **chars, int *cmdlen, int inlineHighlight){
-  //int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int));
   int indicesLen = 0;
   //find the number of keywords in a line
   int keywordCount = 0;
   char* foundWord;
   for(int i = 0; i < numKeywords; i++){
     foundWord = strstr(*chars, keywords[i]);
-    //if((foundWord != NULL && foundWord == *chars) || (foundWord != NULL && (int)*(foundWord - 1) == 32))
     while(foundWord != NULL){
       keywordCount++;
       int index = foundWord - *chars;
-      //highlightIndices[indicesLen] = index;
       indicesLen++;
       if(checkKeywordHighlight(*chars, foundWord, strlen(keywords[i])) && index < inlineHighlight){
         insertStr(chars, "\x1b[38;5;26m", index);
@@ -1462,17 +1164,16 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  readFile("notepadmm.c");  //for debug purposes only
-  clearScreen();
-  writeScreen();
+  //readFile("notepadmm.c");  //for debug purposes only
+  //clearScreen();
+  //writeScreen();
 
-  while(1){ //replace with 1 when developing
+  while(1){ 
     char c = processKeypress();
     sortKeypress(c);
     clearScreen();
     scrollCheck();
     sidescrollCheck();
     writeScreen();
-    //writeCmds();
   }
 }
