@@ -455,7 +455,7 @@ void printCursorPos(void){
   if(bufSize > 22){
     offset = bufSize;
   }
-  E.Cy = E.w.ws_row + E.scroll + 2;
+  E.Cy = E.w.ws_row + E.scroll + 1;
   E.Cx = E.sidescroll + E.w.ws_col - offset;
   cursor_move_cmd();
   write(STDOUT_FILENO, "\x1b[0J", 4);
@@ -1117,7 +1117,7 @@ void statusWrite(char *message){
    * Write a message to the special status bar
    */
   E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
-  E.Cx = E.sidescroll;
+  E.Cx = E.sidescroll+1;
   cursor_move_cmd(); //move the cursor
   
   write(STDOUT_FILENO, "\x1b[2K", 4); //clear the special row
@@ -1133,15 +1133,17 @@ void searchHighlight(char **chars){
   char *foundWord;
   int index = 0;
   int searchOffset = 0;
-  if(searchQuery != NULL){
-    foundWord = strstr(*chars + index + searchOffset, searchQuery);
-    while(foundWord != NULL){
-      searchOffset = strlen(searchQuery);
-      index = foundWord - *chars;
-      if(foundWord != NULL) {
-        insertStr(chars, "\x1b[48;5;160m", index);
-        insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
-        foundWord = strstr(*chars + index + searchOffset + 15, searchQuery);
+  if(*chars != NULL){
+    if(searchQuery != NULL){
+      foundWord = strstr(*chars + index + searchOffset, searchQuery);
+      while(foundWord != NULL){
+        searchOffset = strlen(searchQuery);
+        index = foundWord - *chars;
+        if(foundWord != NULL) {
+          insertStr(chars, "\x1b[48;5;160m", index);
+          insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
+          foundWord = strstr(*chars + index + searchOffset + 15, searchQuery);
+        }
       }
     }
   }
@@ -1156,18 +1158,20 @@ void highlightSyntax(char **chars, int inlineHighlight){
   //find the number of keywords in a line
   int keywordCount = 0;
   char* foundWord;
-  for(int i = 0; i < numKeywords; i++){
-    foundWord = strstr(*chars, keywords[i]);
-    while(foundWord != NULL){
-      keywordCount++;
-      int index = foundWord - *chars;
-      indicesLen++;
-      if(checkKeywordHighlight(*chars, foundWord, strlen(keywords[i])) && index < inlineHighlight){
-        insertStr(chars, "\x1b[38;5;26m", index);
-        insertStr(chars, "\x1b[0m", index + 10 + strlen(keywords[i]));
-        foundWord = strstr(*chars + index + 14 + strlen(keywords[i]), keywords[i]);
-      } else{
-        foundWord = strstr(*chars + index + strlen(keywords[i]), keywords[i]);
+  if(*chars != NULL){
+    for(int i = 0; i < numKeywords; i++){
+      foundWord = strstr(*chars, keywords[i]);
+      while(foundWord != NULL){
+        keywordCount++;
+        int index = foundWord - *chars;
+        indicesLen++;
+        if(checkKeywordHighlight(*chars, foundWord, strlen(keywords[i])) && index < inlineHighlight){
+          insertStr(chars, "\x1b[38;5;26m", index);
+          insertStr(chars, "\x1b[0m", index + 10 + strlen(keywords[i]));
+          foundWord = strstr(*chars + index + 14 + strlen(keywords[i]), keywords[i]);
+        } else{
+          foundWord = strstr(*chars + index + strlen(keywords[i]), keywords[i]);
+        }
       }
     }
   }
