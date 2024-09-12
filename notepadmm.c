@@ -182,11 +182,11 @@ void initEditor(char *filename){
   searchFlag = 0; //set serachFlag initiallly to 0 since we won't be searching on initialization
   if(filename[strlen(filename) - 1] == 'c'){
     keywords = readTextArray("ckeyword.txt");
-  } else if (filename[strlen(filename) - 2] == 'p' && filename[strlen(filename) - 1] == 'y'){
-    keywords = readTextArray("pykeyword.txt");
   } else if (filename[strlen(filename) - 2] == 'v' && filename[strlen(filename) - 1] == 'a'){
     keywords = readTextArray("javakeyword.txt");
-  } else {
+  } else if(filename[strlen(filename) - 2] == 'p' && filename[strlen(filename) - 1] == 'p'){
+    keywords = readTextArray("cppkeyword.txt");
+  } else{
     keywords = NULL;
     numKeywords = 0;
   }
