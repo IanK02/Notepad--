@@ -34,12 +34,13 @@ void scrollRight(void);
 void scrollLeft(void);
 void searchHighlight(char **, int *);
 void searchPrompt(void);
-void highlightSyntax(char **, int *);
+void highlightSyntax(char **, int *, int);
 char** readTextArray(char *);
 int inlineCommentHighlight(char **, int *);
-void multilineCommentHighlight(char **, int *, int *);
+void multilineCommentHighlight(char **, int *);
 void endMultiline(char **, int *, int *);
 int* markMultilineRows(void);
 void commentEntireRow(char **, int *);
+int checkKeywordHighlight(char *, char *, int);
 
 #endif 

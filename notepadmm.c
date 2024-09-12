@@ -945,22 +945,26 @@ void writeScreen(void){
       //  if(E.rows[i].chars != NULL) add_cmd(E.rows[i].chars, 0);
       //}
       char* written_chars;
-      int commented;
+      int commented; //the index at which a // occurs if it does
       //int* highlightedIndices;
       row dup_row = duplicate_row(&E.rows[i]);
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
+        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
         //add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
+        if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
+        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
         //add_cmd(written_chars, 0);
       }
-      if(markedRows[i]) commentEntireRow(&written_chars, &dup_row.cmdlen);
+      if(markedRows[i]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
@@ -974,16 +978,20 @@ void writeScreen(void){
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[E.numrows-1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(markedRows[E.numrows-1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
+        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
         //add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[E.numrows-1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
+        if(markedRows[E.numrows-1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
+        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
         //add_cmd(written_chars, 0);
       }
-      if(markedRows[E.numrows-1]) commentEntireRow(&written_chars, &dup_row.cmdlen);
+      if(markedRows[E.numrows-1]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
       free(dup_row.chars);
       free(written_chars);
@@ -1002,16 +1010,20 @@ void writeScreen(void){
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
+        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
         //add_cmd(written_chars, 0);
       } else {
-        written_chars = sideScrollCharSet(&dup_row);;
+        written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
+        if(markedRows[i] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
+        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
         //add_cmd(written_chars, 0);
       }
-      if(markedRows[i]) commentEntireRow(&written_chars, &dup_row.cmdlen);
+      if(markedRows[i]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
@@ -1030,16 +1042,19 @@ void writeScreen(void){
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
         searchHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[E.scroll + E.w.ws_row - 1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        if(commented == 0 && markedRows[E.scroll + E.w.ws_row - 1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
         //add_cmd(written_chars, 0);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
-        if(commented == 0 && markedRows[E.scroll + E.w.ws_row - 1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen);
+        //if(commented != -1) written_chars += commented;
+        if(markedRows[E.scroll + E.w.ws_row - 1] == 0) highlightSyntax(&written_chars, &dup_row.cmdlen, commented);
+        //inlineCommentHighlight(&written_chars, &dup_row.cmdlen);
         //add_cmd(written_chars, 0);
       }
-      if(markedRows[E.scroll + E.w.ws_row - 1]) commentEntireRow(&written_chars, &dup_row.cmdlen);
+      if(markedRows[E.scroll + E.w.ws_row - 1]) multilineCommentHighlight(&written_chars, &dup_row.cmdlen);
       add_cmd(written_chars, 0);
       free(dup_row.chars);
       free(written_chars);
@@ -1229,9 +1244,9 @@ char** readTextArray(char* filename){
    }
   }
 
-  //if(lines > 0 ){ //count the last line which doesn't end with a \n
-  //  lines++;
-  //}
+  if(lines > 0 ){ //count the last line which doesn't end with a \n
+    lines++;
+  }
 
   fseek(file, start_pos, SEEK_SET); //set file pointer back to beginning of file
   char **words = malloc(lines * sizeof(char *)); //initialize our array of char pointers
@@ -1320,7 +1335,7 @@ void searchHighlight(char **chars, int *cmdlen){
 }
 
 /*** Syntax Highlighting***/
-void highlightSyntax(char **chars, int *cmdlen){
+void highlightSyntax(char **chars, int *cmdlen, int inlineHighlight){
   //int *highlightIndices = (int *)malloc(strlen(*chars) * sizeof(int));
   int indicesLen = 0;
   //find the number of keywords in a line
@@ -1334,7 +1349,7 @@ void highlightSyntax(char **chars, int *cmdlen){
       int index = foundWord - *chars;
       //highlightIndices[indicesLen] = index;
       indicesLen++;
-      if((foundWord == *chars) || !(((int)*(foundWord - 1) >= 65 && (int)*(foundWord - 1) <= 90) || ((int)*(foundWord - 1) >= 97 && (int)*(foundWord - 1) <= 122))){
+      if(checkKeywordHighlight(*chars, foundWord, strlen(keywords[i])) && index < inlineHighlight){
         insertStr(chars, "\x1b[38;5;26m", index);
         insertStr(chars, "\x1b[0m", index + 10 + strlen(keywords[i]));
         (*cmdlen) += 14;
@@ -1354,19 +1369,23 @@ int inlineCommentHighlight(char **chars, int *cmdlen){
     insertStr(chars, "\x1b[38;5;22m", index);
     insertStr(chars, "\x1b[0m", strlen(*chars));
     (*cmdlen) += 14;
-    return 1;
+    return index;
   }
-  return 0;
+  return __INT_MAX__;
 }
 
-void multilineCommentHighlight(char **chars, int *cmdlen, int *commented){
+void multilineCommentHighlight(char **chars, int *cmdlen){
   char* foundWord;
   foundWord = strstr(*chars, "/*");
   if(foundWord != NULL){
     int index = foundWord - *chars;
     insertStr(chars, "\x1b[38;5;22m", index);
-    (*cmdlen) += 10;
-    (*commented) = 1;
+    insertStr(chars, "\x1b[0m", strlen(*chars));
+    (*cmdlen) += 14;
+  } else {
+    insertStr(chars, "\x1b[38;5;22m", 0);
+    insertStr(chars, "\x1b[0m", strlen(*chars));
+    (*cmdlen) += 14;
   }
 }
 
@@ -1382,8 +1401,12 @@ void endMultiline(char **chars, int *cmdlen, int *commented){
 }
 
 int* markMultilineRows(void){
-  int *markedRows = malloc(E.numrows * sizeof(int));
-  int mark_on;
+  /*
+   *This method will create an int array where each entry is a 1 or a 0 denoting whether or not
+   *the corresponding row in the global editor object E is included in a multiline comment
+   */
+  int *markedRows = malloc(E.numrows * sizeof(int)); 
+  int mark_on = 0;
   char *foundWord;
   for(int i = 0; i < E.numrows; i++){
     if((foundWord = strstr(E.rows[i].chars, "/*")) != NULL){
@@ -1407,13 +1430,30 @@ void commentEntireRow(char **chars, int *cmdlen){
   (*cmdlen) += 14;
 }
 
+int checkKeywordHighlight(char *fullLine, char *word, int wordlen){
+  int passed = 1;
+  if(word != fullLine){
+    if(((int)*(word - 1) >= 65 && (int)*(word - 1) <= 90)|| 
+        ((int)*(word - 1) >= 97 && (int)*(word - 1) <= 122)){
+          passed = 0;
+        }
+  }
+  if(*(word + wordlen) != '\0'){        
+    if(((int)*(word + wordlen) >= 65 && (int)*(word + wordlen) <= 90) ||
+        ((int)*(word + wordlen) >= 97 && (int)*(word + wordlen) <= 122)){
+          passed = 0;
+        }
+    }
+  return passed;
+}
+
 /*** Main Loop ***/
 int main(int argc, char *argv[]){
   enableRawMode();
   if(argc == 2){
     initEditor(argv[1]);
   } else {
-    initEditor("notepadmm.c");
+    initEditor("hello_world.c");
   }
   if(argc == 2){
     char *filename = argv[1];
