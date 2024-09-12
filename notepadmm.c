@@ -1,3 +1,8 @@
+/***
+ * Notepad--
+ * Written by Ian Kinsella
+ */
+
 #include "notepadmm.h" //header file of function prototypes
 /***
  * IMPORTANT NOTES
@@ -59,11 +64,11 @@ struct editor {
   row *rows; //dynamic arrow of rows of text
   int Cx; //cursor x position
   int Cy; //cursor y position
-  int numrows;
+  int numrows; //number of rows
   struct termios termios_o; //terminal configuration struct(from termios.h)
-  struct winsize w;
-  int scroll;
-  int sidescroll;
+  struct winsize w; //special struct used to store information about the terminal
+  int scroll; //how far down the user is scrolled
+  int sidescroll; //how far right the user is scrolled
 };
 
 /*** Global Variables ***/
@@ -252,27 +257,28 @@ row duplicate_row(row *original) {
   /***
    * Creates a duplicate row of original
    */
-    // Initialize a new row
-    row new_row;
 
-    new_row.chars = malloc(original->capacity * sizeof(char));
-    if (new_row.chars == NULL) {
-        // Handle memory allocation failure
-        new_row.length = 0;
-        new_row.capacity = 0;
-        return new_row;
-    }
+  // Initialize a new row
+  row new_row;
 
-    //copy original's chars to new_row's chars
-    memcpy(new_row.chars, original->chars, original->length + 1);//+1 for null terminator
+  new_row.chars = malloc(original->capacity * sizeof(char));
+  if (new_row.chars == NULL) {
+      // Handle memory allocation failure
+      new_row.length = 0;
+      new_row.capacity = 0;
+      return new_row;
+  }
 
-    //ensure new_row chars is null terminated
-    new_row.chars[original->length] = '\0';
+  //copy original's chars to new_row's chars
+  memcpy(new_row.chars, original->chars, original->length + 1);//+1 for null terminator
 
-    // Copy other properties
-    new_row.length = original->length;
-    new_row.capacity = original->capacity;
-    return new_row;
+  //ensure new_row chars is null terminated
+  new_row.chars[original->length] = '\0';
+
+  // Copy other properties
+  new_row.length = original->length;
+  new_row.capacity = original->capacity;
+  return new_row;
 }
 
 void initializeRowMemory(row *r, size_t capacity) {
@@ -316,8 +322,8 @@ void deleteExistingRow(void){
   if(E.rows[E.numrows-1].chars != NULL) free(E.rows[E.numrows-1].chars); //free the chars of the bottom row
   E.numrows--; //decrement number of rows
   if (E.rows == NULL) { //check if reallocation was successful
-      printf("Memory allocation failed\n");
-      exit(1);
+    printf("Memory allocation failed\n");
+    exit(1);
   }
 }
 
@@ -348,7 +354,6 @@ void shiftRowsUp(int index){
 
   if((E.numrows - index) > 1){
     row dup_row = duplicate_row(&E.rows[lowrow]);
-
     E.rows[lowrow-1] = dup_row;
   }
 
@@ -361,7 +366,7 @@ void addRow(void){
    */
   int cy = E.Cy;
   if(E.Cx-1 == E.rows[cy-1].length && cy == E.numrows){ //check if cursor is at the end of the row it's on and if current row is 
-      appendRow();                                          //the bottom row
+      appendRow();                                      //the bottom row
       incrementCursor(0,1,0,0); //move cursor down
   }else if (E.Cx-1 == E.rows[cy-1].length){ //cursor at end of row but not on bottom row
       appendRow();
@@ -442,37 +447,37 @@ void incrementCursor(int up, int down, int left, int right){
    * Increment the position of the global editor object's cursor
    */
     if((up^down^left^right) != 1 || up+down+left+right != 1){
-        printf("Only one parameter can be 1, all others must be 0");
-        return;
+      printf("Only one parameter can be 1, all others must be 0");
+      return;
     }
     if(up && !down && !left && !right){ //up arrow
-        if(E.Cy > 1){
-            E.Cy--; //only deccrement if C.y is > 1, note that going up decrements C.y as the top left of the screen is 1,1
-            //keep moving the cursor left until it hits a printable character or 
-            //beginning of the row
-            if(E.Cx > E.rows[E.Cy-1].length + 1){
-              while(E.Cx > E.rows[E.Cy-1].length + 1){
-                E.Cx--; //snap cursor to end of row
-              }
-            }
-        }
-    } else if(!up && down && !left && !right){ //down arrow
-        if(E.Cy <= E.scroll + E.w.ws_row){ 
-          E.Cy++; //only increment C.y if y is < rows limit, the row limit is positive and represents the lowest row of the screen
-          //keep moving the cursor left until it hits a printable character or 
-          //beginning of the row
+      if(E.Cy > 1){
+        E.Cy--; //only deccrement if C.y is > 1, note that going up decrements C.y as the top left of the screen is 1,1
+        //keep moving the cursor left until it hits a printable character or 
+        //beginning of the row
+        if(E.Cx > E.rows[E.Cy-1].length + 1){
           while(E.Cx > E.rows[E.Cy-1].length + 1){
             E.Cx--; //snap cursor to end of row
           }
         }
+      }
+    } else if(!up && down && !left && !right){ //down arrow
+      if(E.Cy <= E.scroll + E.w.ws_row){ 
+        E.Cy++; //only increment C.y if y is < rows limit, the row limit is positive and represents the lowest row of the screen
+        //keep moving the cursor left until it hits a printable character or 
+        //beginning of the row
+        while(E.Cx > E.rows[E.Cy-1].length + 1){
+          E.Cx--; //snap cursor to end of row
+        }
+      }
     } else if(!up && !down && left && !right){ //left arrow
-        if(E.Cx > 1){
-            E.Cx--; //only increment if C.x is > 1, we have to use 1 because the cursor actually controls the character behind it
-        }
+      if(E.Cx > 1){
+        E.Cx--; //only increment if C.x is > 1, we have to use 1 because the cursor actually controls the character behind it
+      }
     } else if(!up && !down && !left && right){ //right arrow
-        if(E.Cx <= E.sidescroll + E.w.ws_col){
-            E.Cx++; //only increment if C.x < columns limit, the column limit is positive and represents the farthest right column on screen
-        }
+      if(E.Cx <= E.sidescroll + E.w.ws_col){
+        E.Cx++; //only increment if C.x < columns limit, the column limit is positive and represents the farthest right column on screen
+      }
     }
 }   
 
@@ -483,19 +488,19 @@ void moveCursor(char c, char *buf){
     switch (buf[2])
     {
     case 'A': //up arrow
-        incrementCursor(1,0,0,0); //increment the cursor's coordinates(stored in the global editor E)
-        break;
+      incrementCursor(1,0,0,0); //increment the cursor's coordinates(stored in the global editor E)
+      break;
     case 'B': //down arrow
-        if(E.Cy <= E.numrows - 1) incrementCursor(0,1,0,0); //limit cursor to one above the lowest row
-        break;
+      if(E.Cy <= E.numrows - 1) incrementCursor(0,1,0,0); //limit cursor to one above the lowest row
+      break;
     case 'C': //right arrow
-        if(E.Cx <= E.rows[E.Cy-1].length) incrementCursor(0,0,0,1); //limit cursor at only one space further right than the text
-        break;
+      if(E.Cx <= E.rows[E.Cy-1].length) incrementCursor(0,0,0,1); //limit cursor at only one space further right than the text
+      break;
     case 'D': //left arrow
-        incrementCursor(0,0,1,0);
-        break;
+      incrementCursor(0,0,1,0);
+      break;
     default:
-        break;
+      break;
     } 
 }
 
@@ -578,7 +583,7 @@ void shiftLineCharsL(int index, row *row){
    * Shift all characters in a row to the right of index one to the left
    */
   for (int i = index; i < row->length - 1; i++) {
-      row->chars[i] = row->chars[i + 1];
+    row->chars[i] = row->chars[i + 1];
   }
 }
 
@@ -587,43 +592,43 @@ void addPrintableChar(char c) {
    * Write a printable characters to the screen in response to user input
    */
   if (E.Cx - E.sidescroll <= E.w.ws_col) {
-      //temporary pointer to the row we're editing
-      row *currentRow = &E.rows[E.Cy-1];
+    //temporary pointer to the row we're editing
+    row *currentRow = &E.rows[E.Cy-1];
+    
+    //double capacity if needed
+    if (currentRow->length + 2 > currentRow->capacity) {//+2 for new char and null terminator
+      size_t new_capacity = GROW_CAPACITY(currentRow->capacity);
+      //make sure we don't drop below MIN_ROW_CAPACITY
+      if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
       
-      //double capacity if needed
-      if (currentRow->length + 2 > currentRow->capacity) {//+2 for new char and null terminator
-          size_t new_capacity = GROW_CAPACITY(currentRow->capacity);
-          //make sure we don't drop below MIN_ROW_CAPACITY
-          if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-          
-          //allocate memory to a new row
-          char *new_chars = realloc(currentRow->chars, new_capacity);
-          if (new_chars == NULL) {
-              // Handle memory allocation failure
-              return;
-          }
-          
-          //initialize newly allocated memory
-          memset(new_chars + currentRow->capacity, 0, new_capacity - currentRow->capacity);
-          
-          //update global editor object's row to new_chars and new_capacity
-          currentRow->chars = new_chars;
-          currentRow->capacity = new_capacity;
+      //allocate memory to a new row
+      char *new_chars = realloc(currentRow->chars, new_capacity);
+      if (new_chars == NULL) {
+          // Handle memory allocation failure
+          return;
       }
       
-      //shift characters right to make room for the new one
-      memmove(&currentRow->chars[E.Cx], &currentRow->chars[E.Cx-1], currentRow->length - E.Cx + 1);
+      //initialize newly allocated memory
+      memset(new_chars + currentRow->capacity, 0, new_capacity - currentRow->capacity);
       
-      //insert the new character
-      currentRow->chars[E.Cx-1] = c;
-      //increment row length
-      currentRow->length++;
+      //update global editor object's row to new_chars and new_capacity
+      currentRow->chars = new_chars;
+      currentRow->capacity = new_capacity;
+    }
+    
+    //shift characters right to make room for the new one
+    memmove(&currentRow->chars[E.Cx], &currentRow->chars[E.Cx-1], currentRow->length - E.Cx + 1);
+    
+    //insert the new character
+    currentRow->chars[E.Cx-1] = c;
+    //increment row length
+    currentRow->length++;
 
-      currentRow->chars[currentRow->length] = '\0'; //ensure row is always null terminated    
-      E.Cx++; //increment cursor to account for the new character 
-      if(E.Cx - E.sidescroll > E.w.ws_col){ //check if we need to scroll
-        scrollRight();
-      }
+    currentRow->chars[currentRow->length] = '\0'; //ensure row is always null terminated    
+    E.Cx++; //increment cursor to account for the new character 
+    if(E.Cx - E.sidescroll > E.w.ws_col){ //check if we need to scroll
+      scrollRight();
+    }
   }
 }
 
@@ -641,25 +646,25 @@ void backspacePrintableChar(void) {
    * Delete a printable character in response to the user pressing backspace
    */
   if (E.Cx > 1) {
-      //temporary pointer to current row we're editing
-      row *currentRow = &E.rows[E.Cy-1];
+    //temporary pointer to current row we're editing
+    row *currentRow = &E.rows[E.Cy-1];
 
-      //shift left all the characters up to the cursor in the row
-      memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
-      currentRow->length--;
-      
-      //+1 to account for null terminator
-      size_t new_capacity = currentRow->length + 1;
-      //make sure we don't drop below MIN_ROW_CAPACITY
-      if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-            
-      //delete the last character
-      currentRow->chars[currentRow->length] = '\0';
-      //decrement character to account for the new shorter row
-      E.Cx--;
-      if(E.Cx <= E.sidescroll){
-        scrollLeft();
-      } 
+    //shift left all the characters up to the cursor in the row
+    memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
+    currentRow->length--;
+    
+    //+1 to account for null terminator
+    size_t new_capacity = currentRow->length + 1;
+    //make sure we don't drop below MIN_ROW_CAPACITY
+    if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+          
+    //delete the last character
+    currentRow->chars[currentRow->length] = '\0';
+    //decrement character to account for the new shorter row
+    E.Cx--;
+    if(E.Cx <= E.sidescroll){
+      scrollLeft();
+    } 
   }
 }
 
@@ -668,21 +673,21 @@ void deletePrintableChar(void){
    * Delete a printable character in response to the user pressing delete
    */
   if(E.Cx > 0){
-      //temporary pointer to current row we're editing
-      row *currentRow = &E.rows[E.Cy-1];
+    //temporary pointer to current row we're editing
+    row *currentRow = &E.rows[E.Cy-1];
 
-      //shift left all the characters up to the cursor in the row
-      memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
-      currentRow->length--;
-      
-      //+1 to account for null terminator
-      size_t new_capacity = currentRow->length + 1;
-      //make sure we don't drop below MIN_ROW_CAPACITY
-      if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-      
-      currentRow->chars[currentRow->length] = '\0';
-      //DO NOT decrement character to account for the new shorter row
-      //this is how delete is different from backspace
+    //shift left all the characters up to the cursor in the row
+    memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
+    currentRow->length--;
+    
+    //+1 to account for null terminator
+    size_t new_capacity = currentRow->length + 1;
+    //make sure we don't drop below MIN_ROW_CAPACITY
+    if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+    
+    currentRow->chars[currentRow->length] = '\0';
+    //DO NOT decrement character to account for the new shorter row
+    //this is how delete is different from backspace
   }
 }
 
@@ -712,18 +717,18 @@ void sortEscapes(char c){
   read(STDIN_FILENO, buff + 1, 1); //read next byte of input into buf
   read(STDIN_FILENO, buff + 2, 1); //read next byte of input into buf
   if(buff[2] == '3'){ //delete key was pressed
-      read(STDIN_FILENO, buff + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
-      if(E.rows[E.Cy-1].length != 0){ //check if the row isn't empty
-          int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
-          if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
-              deletePrintableChar();
-          }
-      } else if(E.Cy != E.numrows){ //check that the cursor isn't on the bottom row
-          removeRow(0);
+    read(STDIN_FILENO, buff + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
+    if(E.rows[E.Cy-1].length != 0){ //check if the row isn't empty
+      int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
+      if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
+        deletePrintableChar();
       }
+    } else if(E.Cy != E.numrows){ //check that the cursor isn't on the bottom row
+      removeRow(0);
+    }
   } else { //arrow key was pressed 
-      moveCursor(c, buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
-      //read in the rest of the command buffer, so that's why we use a separate moveCursor function
+    moveCursor(c, buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
+    //read in the rest of the command buffer, so that's why we use a separate moveCursor function
   }
   free(buff); //free memory allocated to buf
   buff = NULL; //set buf back to NULL
@@ -779,21 +784,21 @@ void cursor_move_cmd(void){
    * Write the commands to STDOUT to make the visual change of moving the cursor to the location specified by
    * the global editor object E
    */
-    write(STDOUT_FILENO, "\x1b[?25l", 6); //make cursor invisible
-    int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx)+1;
-    char *buf = malloc(buf_size);
-    if(buf == NULL){
-      printf("%s", "Memory allocation failed\n");
-    }
-    snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy-E.scroll, E.Cx - E.sidescroll);
-    write(STDOUT_FILENO, buf, buf_size-1); //move cursor to location specified by Cx and Cy
-    write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
+  write(STDOUT_FILENO, "\x1b[?25l", 6); //make cursor invisible
+  int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx)+1;
+  char *buf = malloc(buf_size);
+  if(buf == NULL){
+    printf("%s", "Memory allocation failed\n");
+  }
+  snprintf(buf, buf_size, "\x1b[%d;%dH", E.Cy-E.scroll, E.Cx - E.sidescroll);
+  write(STDOUT_FILENO, buf, buf_size-1); //move cursor to location specified by Cx and Cy
+  write(STDOUT_FILENO, "\x1b[?25h", 6); //make cursor visible
 
-    if (buf != NULL) { //null check before freeing
-      free(buf);
-    }
+  if (buf != NULL) { //null check before freeing
+    free(buf);
+  }
 
-    buf = NULL; //set buf back to NULL
+  buf = NULL; //set buf back to NULL
 }
 
 char processKeypress(void){
@@ -803,10 +808,10 @@ char processKeypress(void){
   char c = '\0';
   read(STDIN_FILENO, &c, 1);
   if(c == CTRL_KEY('c')){ //used to check if key pressed was ctrl+c which is the key to close the editor
-      write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
-      write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
-      free_all_rows();
-      exit(0);
+    write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
+    write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
+    free_all_rows();
+    exit(0);
   }
   return c;
 }
@@ -923,33 +928,33 @@ void readFile(char *filename) {
   /***
    * Read a file into the global editor object E
    */
-    if(strlen(filename) > 256){
-      printf("%s\n", "File name too large");
-      return;
-    }
-    CURRENT_FILENAME = filename; //CURRENT_FILENAME points to same block of memory as *filename which is argv[1]
-    FILE *current_file;
-    current_file = fopen(filename, "r");
-    if (current_file == NULL) {
-        perror("Error opening file");
-        return;
-    }
+  if(strlen(filename) > 256){
+    printf("%s\n", "File name too large");
+    return;
+  }
+  CURRENT_FILENAME = filename; //CURRENT_FILENAME points to same block of memory as *filename which is argv[1]
+  FILE *current_file;
+  current_file = fopen(filename, "r");
+  if (current_file == NULL) {
+    perror("Error opening file");
+    return;
+  }
 
-    char *line = NULL; //pointer to hold the line read
-    size_t len = 0;   //size of the buffer
-    ssize_t read;      //number of characters read
-    if((read = getline(&line, &len, current_file)) != -1){//do a getline call once without appendRow since a row is appended during initEditor()
-      setChars(E.rows, line, read-1);//-1 to exclude the \n because writeScreen will add it
-    }
+  char *line = NULL; //pointer to hold the line read
+  size_t len = 0;   //size of the buffer
+  ssize_t read;      //number of characters read
+  if((read = getline(&line, &len, current_file)) != -1){//do a getline call once without appendRow since a row is appended during initEditor()
+    setChars(E.rows, line, read-1);//-1 to exclude the \n because writeScreen will add it
+  }
 
-    while ((read = getline(&line, &len, current_file)) != -1) {
-        appendRow(); //add a new row
-        setChars(&E.rows[E.numrows-1], line, read-1); //-1 to exclude the \n because writeScreen will add it
-    }
-    setChars(&E.rows[E.numrows-1], line, E.rows[E.numrows-1].length + 1); //add on the last character of the file
+  while ((read = getline(&line, &len, current_file)) != -1) {
+    appendRow(); //add a new row
+    setChars(&E.rows[E.numrows-1], line, read-1); //-1 to exclude the \n because writeScreen will add it
+  }
+  setChars(&E.rows[E.numrows-1], line, E.rows[E.numrows-1].length + 1); //add on the last character of the file
 
-    free(line);
-    fclose(current_file); 
+  free(line);
+  fclose(current_file); 
 }
 
 void saveFile(void){
@@ -962,29 +967,29 @@ void saveFile(void){
 
   exitRawMode(); //temporarily turn off RawMode
   if (fgets(filename, sizeof(filename), stdin) != NULL) {
-      //remove the \n
-      size_t length = strlen(filename);
-      if (length > 0 && filename[length - 1] == '\n') {
-          filename[length - 1] = '\0';
-      }
-      if(strlen(filename) > 256){
-        statusWrite("Filename too large");
-        enableRawMode();
-        E.Cy = E.scroll+1; //snap cursor back to top of screen
-        return;
-      }
-      if(CURRENT_FILENAME == NULL && strlen(filename) == 0){
-        statusWrite("Filename cannot be empty");
-        enableRawMode();
-        E.Cy = E.scroll+1; //snap cursor back to top of screen
-        return;
-      }
+    //remove the \n
+    size_t length = strlen(filename);
+    if (length > 0 && filename[length - 1] == '\n') {
+      filename[length - 1] = '\0';
+    }
+    if(strlen(filename) > 256){
+      statusWrite("Filename too large");
+      enableRawMode();
+      E.Cy = E.scroll+1; //snap cursor back to top of screen
+      return;
+    }
+    if(CURRENT_FILENAME == NULL && strlen(filename) == 0){
+      statusWrite("Filename cannot be empty");
+      enableRawMode();
+      E.Cy = E.scroll+1; //snap cursor back to top of screen
+      return;
+    }
 
-      if(strlen(filename) == 0 && CURRENT_FILENAME != NULL){
-        writeFile(CURRENT_FILENAME);
-      } else if(strlen(filename) > 0){
-        writeFile(filename);
-      }
+    if(strlen(filename) == 0 && CURRENT_FILENAME != NULL){
+      writeFile(CURRENT_FILENAME);
+    } else if(strlen(filename) > 0){
+      writeFile(filename);
+    }
   }
   enableRawMode();
   E.Cy = E.scroll+1; //snap cursor back to top of screen
@@ -997,8 +1002,8 @@ void writeFile(char *filename){
   FILE *fptr = fopen(filename, "w");
 
   if (fptr == NULL) {
-      perror("Error opening file");
-      return;
+    perror("Error opening file");
+    return;
   }
 
   for(int i = 0; i < E.numrows - 1; i++){ //write all the chars within rows to the file, note that a \r is NOT written because for some 
@@ -1044,7 +1049,7 @@ char** readTextArray(char* filename){
   while((c = fgetc(file)) != EOF){ //count the number of lines
     if(c == '\n'){
       lines++;
-   }
+    }
   }
 
   if(lines > 0 ){ //count the last line which doesn't end with a \n
