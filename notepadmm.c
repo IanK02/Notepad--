@@ -229,9 +229,8 @@ char* sideScrollCharSet(row *row){
     substr[row->length - E.sidescroll - offset] = '\0'; //ensure substr is null termirnated
     return substr;
   } else if(E.sidescroll > row->length){
-    return "";
+    return NULL;
   }
-  
 }
 
 void setChars(row *row, char *chars, int strlen){
@@ -442,6 +441,31 @@ void removeRow(int backSpace){
 }
 
 /*** Cursor Manipulation Methods ***/
+void printCursorPos(void){
+  /***
+   * Print the current position of the cursor in the bottom right of the screen
+   */
+  int oldY = E.Cy;
+  int oldX = E.Cx;
+  int bufSize = snprintf(NULL, 0, "Ln %d, Col %d", E.Cy, E.Cx)+1;
+  char *buf;
+  buf = malloc(bufSize);
+  snprintf(buf, bufSize, "Ln %d, Col %d", E.Cy, E.Cx);
+  int offset = 22;
+  if(bufSize > 22){
+    offset = bufSize;
+  }
+  E.Cy = E.w.ws_row + E.scroll + 2;
+  E.Cx = E.sidescroll + E.w.ws_col - offset;
+  cursor_move_cmd();
+  write(STDOUT_FILENO, "\x1b[0J", 4);
+  write(STDOUT_FILENO, buf, bufSize);
+
+  E.Cx = oldX;
+  E.Cy = oldY;
+  free(buf);
+}
+
 void incrementCursor(int up, int down, int left, int right){  
   /***
    * Increment the position of the global editor object's cursor
@@ -539,7 +563,7 @@ void sidescrollCheck(void){
   if(E.Cx - E.sidescroll > E.w.ws_col){
     scrollRight();
   } else if (E.Cx-1 < E.sidescroll){
-    scrollLeft();
+    E.sidescroll = E.Cx-1;
   }
 }
 
@@ -856,7 +880,7 @@ void writeScreen(void){
       add_cmd(written_chars, 0);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
-      free(written_chars);
+      if(written_chars != NULL) free(written_chars);
     }
     if(E.rows[E.numrows-1].chars != NULL){ 
       char* written_chars;
@@ -875,7 +899,7 @@ void writeScreen(void){
       if(markedRows[E.numrows-1]) multilineCommentHighlight(&written_chars);
       add_cmd(written_chars, 0);
       free(dup_row.chars);
-      free(written_chars);
+      if(written_chars != NULL) free(written_chars);
     }
   } else {
     for(int i = E.scroll; i < E.scroll + E.w.ws_row - 1; i++){
@@ -896,7 +920,9 @@ void writeScreen(void){
       add_cmd(written_chars, 0);
       add_cmd("\r\n", 0);
       free(dup_row.chars);
-      free(written_chars);
+      if(written_chars != NULL){
+        free(written_chars);
+      }
     }
     if(E.rows[E.scroll + E.w.ws_row - 1].chars != NULL) {
       char* written_chars;
@@ -915,10 +941,13 @@ void writeScreen(void){
       if(markedRows[E.scroll + E.w.ws_row - 1]) multilineCommentHighlight(&written_chars);
       add_cmd(written_chars, 0);
       free(dup_row.chars);
-      free(written_chars);
+      if(written_chars != NULL) free(written_chars);
     }
   }
   writeCmds();
+  printCursorPos();
+  scrollCheck();
+  sidescrollCheck();
   cursor_move_cmd(); //move cursor to current cursor position(visible change)
   free(markedRows);
 }
@@ -1018,6 +1047,7 @@ void writeFile(char *filename){
   statusWrite(bytes_message);
 
   fclose(fptr); 
+  free(bytes_message);
 }
 
 long getFileSize(FILE *file){
@@ -1148,12 +1178,14 @@ int inlineCommentHighlight(char **chars){
    * Changes inline comments to green
    */
   char* foundWord;
-  foundWord = strstr(*chars, "//");
-  if(foundWord != NULL){
-    int index = foundWord - *chars;
-    insertStr(chars, "\x1b[38;5;22m", index);
-    insertStr(chars, "\x1b[0m", strlen(*chars));
-    return index;
+  if(*chars != NULL){ 
+    foundWord = strstr(*chars, "//");
+    if(foundWord != NULL){
+      int index = foundWord - *chars;
+      insertStr(chars, "\x1b[38;5;22m", index);
+      insertStr(chars, "\x1b[0m", strlen(*chars));
+      return index;
+    }
   }
   return __INT_MAX__;
 }
@@ -1163,14 +1195,16 @@ void multilineCommentHighlight(char **chars){
    * Handles making green rows that are included in multiline comments
    */
   char* foundWord;
-  foundWord = strstr(*chars, "/*");
-  if(foundWord != NULL){
-    int index = foundWord - *chars;
-    insertStr(chars, "\x1b[38;5;22m", index);
-    insertStr(chars, "\x1b[0m", strlen(*chars));
-  } else {
-    insertStr(chars, "\x1b[38;5;22m", 0);
-    insertStr(chars, "\x1b[0m", strlen(*chars));
+  if(*chars != NULL){
+    foundWord = strstr(*chars, "/*");
+    if(foundWord != NULL){
+      int index = foundWord - *chars;
+      insertStr(chars, "\x1b[38;5;22m", index);
+      insertStr(chars, "\x1b[0m", strlen(*chars));
+    } else {
+      insertStr(chars, "\x1b[38;5;22m", 0);
+      insertStr(chars, "\x1b[0m", strlen(*chars));
+    }
   }
 }
 
@@ -1232,7 +1266,7 @@ int main(int argc, char *argv[]){
   if(argc == 2){
     initEditor(argv[1]);
   } else {
-    initEditor("hello_world.c");
+    initEditor("");
   }
   if(argc == 2){
     char *filename = argv[1];
@@ -1241,7 +1275,7 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  //readFile("notepadmm.c");  //for debug purposes only
+  //readFile("hello_world.c");  //for debug purposes only
   //clearScreen();
   //writeScreen();
 

@@ -40,5 +40,6 @@ void multilineCommentHighlight(char **);
 int* markMultilineRows(void);
 void commentEntireRow(char **);
 int checkKeywordHighlight(char *, char *, int);
+void printCursorPos(void);
 
 #endif 
