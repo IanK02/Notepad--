@@ -24,9 +24,15 @@
 
 /*** Structures ***/
 struct cmd_buf{
+  /*** 
+   * The Command Buffer(cbuf) will be a dynamically sized string that will be used to write
+   * the entire screen in one big write command instead of having a separate write command for
+   * each row
+  */
   char *cmds;
   int len;
 };
+
 typedef struct row {
   /***
    * This represents a row of text, it will contain the information listed below
@@ -47,6 +53,8 @@ struct editor {
    * 3. Number of rows
    * 4. termios(terminal configuration)
    * 5. winsize(size of the window)
+   * 6. scroll(current vertical scroll)
+   * 7. sidescroll(horizontal scroll)
    */
   row *rows; //dynamic arrow of rows of text
   int Cx; //cursor x position
@@ -61,11 +69,11 @@ struct editor {
 /*** Global Variables ***/
 struct editor E; //The global editor struct
 struct cmd_buf cbuf; //The global command buffer
-char *CURRENT_FILENAME;
-int searchFlag;
-char searchQuery[256];
-char **keywords;
-int numKeywords;
+char *CURRENT_FILENAME; //The name of the current file open
+int searchFlag; //Toggled if user is currently using the search feature
+char searchQuery[256]; //The query the user searched for
+char **keywords; //Array of strings of keywords to highlight
+int numKeywords; //Number of keywords in the language
 
 /*** Function Prototypes ***/
 //note for these prototypes I didn't want to include them in the header file because
@@ -76,10 +84,12 @@ void shiftLineCharsL(int index, row *row);
 void initializeRowMemory(row *r, size_t capacity);
 row duplicate_row(row *original_row);
 void setChars(row *row, char *chars, int strlen);
-char* getSubstring(row *original);
 
 /*** Command Buffer ***/
 void add_cmd(char *cmd, int last_cmd){
+  /***
+   * Used to add a command to the global command buffer(cbuf)
+   */
   if(cmd != NULL){
     int cmd_len = snprintf(NULL, 0, "%s", cmd);
     if(last_cmd) cmd_len++;
@@ -98,21 +108,27 @@ void add_cmd(char *cmd, int last_cmd){
 }
 
 void writeCmds(void){
+  /***
+   * Writes all the commands in cbuf to STDOUT
+   */
   write(STDOUT_FILENO, cbuf.cmds, cbuf.len);
   cbuf.len = 0; //set len back to 0
-  //cbuf.cmds = NULL; //reduce cmds back to NULL
   free(cbuf.cmds);
   cbuf.cmds = NULL; //set cmds back to NULL
 }
 
 /*** Editor Initialization and Program Exit***/
 void getWinSize(void){
+  /***
+   * Gets the window size
+   */
     ioctl(0, TIOCGWINSZ, &E.w);
 }
 
 void enableRawMode(void){
-  //This function will enable raw mode in the terminal, as well as disable raw mode 
-  //on the program's exit
+  /***
+   * Enables raw mode in the terminal as well as disabling raw mode on exit
+   */
   tcgetattr(STDIN_FILENO, &E.termios_o);
   struct termios termios_r = E.termios_o;
 
@@ -128,12 +144,17 @@ void enableRawMode(void){
 }
 
 void exitRawMode(void){
-  //Called on program exit to disable raw mode and return terminal to normal
+  /***
+   * Disables raw mode
+   */
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.termios_o);
 }
 
 void initEditor(char *filename){
-  //initialize the global editor object's values as well as clear screen and set cursor at starting position
+  /***
+   * Initialize the global editor object's fields, add the first empty row, get the window size,
+   * and determine the language of the file open to adjust syntax highlighting
+   */
   E.rows = NULL; //initialize rows to null as no text is present yet
   E.numrows = 0;
   appendRow(); //we create the first row, it has no chars, E.numrows doesn't need to be initialized anymore
@@ -142,7 +163,6 @@ void initEditor(char *filename){
   E.scroll = 0; //scrolled to top of terminal to begin with
   E.sidescroll = 0; //scrolled to far left of terminal to begin with
 
-  //E.numrows = 0; //initialize numrows to 0 as no rows of text are present yet
   //we don't have to initialize termios_o as enableRawMode takes care of setting its attributes
   getWinSize(); //this call to get winsize takes cares of initializing winsize w to have the correct values
   E.w.ws_row--; //we decrement row by 1 to leave room for the status message bar
@@ -167,7 +187,10 @@ void initEditor(char *filename){
   }
 }
 
-void free_all_rows(void){ //free all the text contained in the global editor E and the list of keywords
+void free_all_rows(void){
+  /***
+   * Free all rows of text in the global editor object E as well as the array of keywords
+   */
   for(int i = 0; i < E.numrows; i++){
     free(E.rows[i].chars);
     E.rows[i].chars = NULL;
@@ -183,6 +206,9 @@ void free_all_rows(void){ //free all the text contained in the global editor E a
 
 /*** Row Manipulation Methods ***/
 char* sideScrollCharSet(row *row){
+  /***
+   * Returns the string(adjusted for sidescroll and window size) that is to be printed to the screen
+   */
   int offset = 0;
   int offScreenFlag = 0;
   if((row->length - E.sidescroll) >= E.w.ws_col){
@@ -204,7 +230,9 @@ char* sideScrollCharSet(row *row){
 }
 
 void setChars(row *row, char *chars, int strlen){
-  //strlen should NOT include the null terminator
+  /***
+   * Sets the characters of row to chars
+   */
   if(row->capacity <= strlen){//reallocate row's capacity if needed
     row->chars = realloc(row->chars, strlen+1); //+1 for null terminator
     row->capacity = strlen + 1;
@@ -221,6 +249,9 @@ void setChars(row *row, char *chars, int strlen){
 } 
 
 row duplicate_row(row *original) {
+  /***
+   * Creates a duplicate row of original
+   */
     // Initialize a new row
     row new_row;
 
@@ -245,33 +276,43 @@ row duplicate_row(row *original) {
 }
 
 void initializeRowMemory(row *r, size_t capacity) {
-    //initialize chars to have MIN_ROW_CAPACITY bytes
-    r->chars = malloc(capacity);
-    r->capacity = MIN_ROW_CAPACITY;
-    if (r->chars == NULL) {
-        // Handle memory allocation failure
-        exit(1);
-    }
-    //set chars equal to all 0(the null terminator)
-    memset(r->chars, 0, capacity);
-    //ensure the first character of chars is null terminator and set length to 0
-    r->chars[0] = '\0';
-    r->length = 0;
+  /***
+   * Allocates memory for a newly created row and initializes its fields
+   */
+  //initialize chars to have MIN_ROW_CAPACITY bytes
+  r->chars = malloc(capacity);
+  r->capacity = MIN_ROW_CAPACITY;
+  if (r->chars == NULL) {
+      // Handle memory allocation failure
+      exit(1);
+  }
+  //set chars equal to all 0(the null terminator)
+  memset(r->chars, 0, capacity);
+  //ensure the first character of chars is null terminator and set length to 0
+  r->chars[0] = '\0';
+  r->length = 0;
 }
 
 void appendRow(void) {
-    //increate numrows and allocate memory for the new row
-    E.numrows++;
-    E.rows = realloc(E.rows, sizeof(row) * E.numrows);
-    if (E.rows == NULL) {
-        // Handle memory allocation failure
-        exit(1);
-    }
-    //initialize the memory of the newly created row
-    initializeRowMemory(&E.rows[E.numrows - 1], MIN_ROW_CAPACITY);
+  /***
+   * Adds a new unitialized row to the global editor object's array of rows
+   */
+  
+  //increate numrows and allocate memory for the new row
+  E.numrows++;
+  E.rows = realloc(E.rows, sizeof(row) * E.numrows);
+  if (E.rows == NULL) {
+      // Handle memory allocation failure
+      exit(1);
+  }
+  //initialize the memory of the newly created row
+  initializeRowMemory(&E.rows[E.numrows - 1], MIN_ROW_CAPACITY);
 }
 
 void deleteExistingRow(void){
+  /***
+   * Delete a row
+   */
   if(E.rows[E.numrows-1].chars != NULL) free(E.rows[E.numrows-1].chars); //free the chars of the bottom row
   E.numrows--; //decrement number of rows
   if (E.rows == NULL) { //check if reallocation was successful
@@ -280,7 +321,10 @@ void deleteExistingRow(void){
   }
 }
 
-void shiftRowsDown(int index){ //shift all rows up to index down 1
+void shiftRowsDown(int index){
+  /***
+   * Shift all rows up to index down 1
+   */
   free(E.rows[E.numrows-1].chars);
   for(int i = E.numrows - 1; i > index + 1; i--){
     E.rows[i] = E.rows[i-1];
@@ -288,11 +332,13 @@ void shiftRowsDown(int index){ //shift all rows up to index down 1
 
   row dup_row = duplicate_row(&E.rows[index]);
 
-  //free(E.rows[index+1].chars);
   E.rows[index+1] = dup_row;
 }
 
 void shiftRowsUp(int index){
+  /***
+   * Shift all rows down from index up 1
+   */
   if(index < E.numrows-1) free(E.rows[index].chars);
   for(int i = index; i < E.numrows - 1; i++){
     E.rows[i] = E.rows[i+1];
@@ -308,7 +354,11 @@ void shiftRowsUp(int index){
 
 }
 
-void addRow(void){ //make a new row of text that is actually visible
+void addRow(void){
+  /***
+   * Create a new row in the text editor in response to the user pressing enter, this method handles splitting a row and copying
+   * its characters if the user presses enter in the middle of a row
+   */
   int cy = E.Cy;
   if(E.Cx-1 == E.rows[cy-1].length && cy == E.numrows){ //check if cursor is at the end of the row it's on and if current row is 
       appendRow();                                          //the bottom row
@@ -320,7 +370,6 @@ void addRow(void){ //make a new row of text that is actually visible
       memset(E.rows[cy].chars, 0, E.rows[cy].capacity);
       E.rows[cy].chars[0] = '\0';
       E.rows[cy].length = 0;
-
 
       incrementCursor(0,1,0,0); //move cursor down
   }else if(E.Cx-1 != E.rows[cy-1].length && E.Cx-1 != 0){ 
@@ -358,6 +407,9 @@ void addRow(void){ //make a new row of text that is actually visible
 }
 
 void removeRow(int backSpace){
+  /***
+   * Remove a row in response to the user pressing backspace or delete, this method handles copy and moving of characters
+   */
   if(backSpace){
     if(E.rows[E.Cy-2].length != 0) E.Cx = E.rows[E.Cy-2].length + 1;
     incrementCursor(1,0,0,0); //increment cursor u
@@ -386,6 +438,9 @@ void removeRow(int backSpace){
 
 /*** Cursor Manipulation Methods ***/
 void incrementCursor(int up, int down, int left, int right){  
+  /***
+   * Increment the position of the global editor object's cursor
+   */
     if((up^down^left^right) != 1 || up+down+left+right != 1){
         printf("Only one parameter can be 1, all others must be 0");
         return;
@@ -422,6 +477,9 @@ void incrementCursor(int up, int down, int left, int right){
 }   
 
 void moveCursor(char c, char *buf){
+  /***
+   * Map user arrow key presses to cursor movements
+   */
     switch (buf[2])
     {
     case 'A': //up arrow
@@ -459,6 +517,9 @@ void scrollLeft(void){
 }
 
 void scrollCheck(void){
+  /***
+   * Check if the editor needs to scroll up or down in response to user inputs
+   */
   if((E.Cy) - E.scroll > E.w.ws_row){
     scrollDown();
   } else if ((E.Cy-1) < E.scroll){
@@ -467,6 +528,9 @@ void scrollCheck(void){
 }
 
 void sidescrollCheck(void){
+  /***
+   * Check if the editor needs to scroll left or right in response to user inputs
+   */
   if(E.Cx - E.sidescroll > E.w.ws_col){
     scrollRight();
   } else if (E.Cx-1 < E.sidescroll){
@@ -476,6 +540,9 @@ void sidescrollCheck(void){
 
 /*** Charcater Manipulation Methods ***/
 void insertStr(char **original, char* insert, size_t index){
+  /***
+   * Insert the string insert into original at index
+   */
   if(index > strlen(*original)){
     printf("%s", "index out of bounds");
     exit(1);
@@ -497,114 +564,133 @@ void insertStr(char **original, char* insert, size_t index){
   *original = result;
 }
 
-void shiftLineCharsR(int index, row *row){ //shift all characters in a row to the right by one, at index two characters will be identical,
-                                           //they will be copies of the character at that index in the original string
-    for (int i = row->length - 1; i > index; i--) {
-        row->chars[i] = row->chars[i - 1];
-    }
+void shiftLineCharsR(int index, row *row){ 
+  /***
+   * Shift all characters in a row up to index right by 1
+   */                                  
+  for (int i = row->length - 1; i > index; i--) {
+    row->chars[i] = row->chars[i - 1];
+  }
 }
 
-void shiftLineCharsL(int index, row *row){ //shift all characters in a row to the left by one, last two characters will be 
-                                           //copies of the last character of the original string
-    for (int i = index; i < row->length - 1; i++) {
-        row->chars[i] = row->chars[i + 1];
-    }
+void shiftLineCharsL(int index, row *row){
+  /***
+   * Shift all characters in a row to the right of index one to the left
+   */
+  for (int i = index; i < row->length - 1; i++) {
+      row->chars[i] = row->chars[i + 1];
+  }
 }
 
 void addPrintableChar(char c) {
-    if (E.Cx - E.sidescroll <= E.w.ws_col) {
-        //temporary pointer to the row we're editing
-        row *currentRow = &E.rows[E.Cy-1];
-        
-        //double capacity if needed
-        if (currentRow->length + 2 > currentRow->capacity) {//+2 for new char and null terminator
-            size_t new_capacity = GROW_CAPACITY(currentRow->capacity);
-            //make sure we don't drop below MIN_ROW_CAPACITY
-            if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-            
-            //allocate memory to a new row
-            char *new_chars = realloc(currentRow->chars, new_capacity);
-            if (new_chars == NULL) {
-                // Handle memory allocation failure
-                return;
-            }
-            
-            //initialize newly allocated memory
-            memset(new_chars + currentRow->capacity, 0, new_capacity - currentRow->capacity);
-            
-            //update global editor object's row to new_chars and new_capacity
-            currentRow->chars = new_chars;
-            currentRow->capacity = new_capacity;
-        }
-        
-        //shift characters right to make room for the new one
-        memmove(&currentRow->chars[E.Cx], &currentRow->chars[E.Cx-1], currentRow->length - E.Cx + 1);
-        
-        //insert the new character
-        currentRow->chars[E.Cx-1] = c;
-        //increment row length
-        currentRow->length++;
+  /***
+   * Write a printable characters to the screen in response to user input
+   */
+  if (E.Cx - E.sidescroll <= E.w.ws_col) {
+      //temporary pointer to the row we're editing
+      row *currentRow = &E.rows[E.Cy-1];
+      
+      //double capacity if needed
+      if (currentRow->length + 2 > currentRow->capacity) {//+2 for new char and null terminator
+          size_t new_capacity = GROW_CAPACITY(currentRow->capacity);
+          //make sure we don't drop below MIN_ROW_CAPACITY
+          if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+          
+          //allocate memory to a new row
+          char *new_chars = realloc(currentRow->chars, new_capacity);
+          if (new_chars == NULL) {
+              // Handle memory allocation failure
+              return;
+          }
+          
+          //initialize newly allocated memory
+          memset(new_chars + currentRow->capacity, 0, new_capacity - currentRow->capacity);
+          
+          //update global editor object's row to new_chars and new_capacity
+          currentRow->chars = new_chars;
+          currentRow->capacity = new_capacity;
+      }
+      
+      //shift characters right to make room for the new one
+      memmove(&currentRow->chars[E.Cx], &currentRow->chars[E.Cx-1], currentRow->length - E.Cx + 1);
+      
+      //insert the new character
+      currentRow->chars[E.Cx-1] = c;
+      //increment row length
+      currentRow->length++;
 
-        currentRow->chars[currentRow->length] = '\0'; //ensure row is always null terminated    
-        E.Cx++; //increment cursor to account for the new character 
-        if(E.Cx - E.sidescroll > E.w.ws_col){ //check if we need to scroll
-          scrollRight();
-        }
-    }
+      currentRow->chars[currentRow->length] = '\0'; //ensure row is always null terminated    
+      E.Cx++; //increment cursor to account for the new character 
+      if(E.Cx - E.sidescroll > E.w.ws_col){ //check if we need to scroll
+        scrollRight();
+      }
+  }
 }
 
-void tabPressed(){ //add checking if tab will push text further past row limit
+void tabPressed(){
+  /***
+   * Write 4 spaces to the screen in response to the user pressing tab
+   */
   for(int i = 0; i < 4; i++){
     addPrintableChar(' ');
   }
 }
 
 void backspacePrintableChar(void) {
-    if (E.Cx > 1) {
-        //temporary pointer to current row we're editing
-        row *currentRow = &E.rows[E.Cy-1];
+  /***
+   * Delete a printable character in response to the user pressing backspace
+   */
+  if (E.Cx > 1) {
+      //temporary pointer to current row we're editing
+      row *currentRow = &E.rows[E.Cy-1];
 
-        //shift left all the characters up to the cursor in the row
-        memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
-        currentRow->length--;
-        
-        //+1 to account for null terminator
-        size_t new_capacity = currentRow->length + 1;
-        //make sure we don't drop below MIN_ROW_CAPACITY
-        if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-             
-        //delete the last character
-        currentRow->chars[currentRow->length] = '\0';
-        //decrement character to account for the new shorter row
-        E.Cx--;
-        if(E.Cx <= E.sidescroll){
-          scrollLeft();
-        } 
-    }
+      //shift left all the characters up to the cursor in the row
+      memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
+      currentRow->length--;
+      
+      //+1 to account for null terminator
+      size_t new_capacity = currentRow->length + 1;
+      //make sure we don't drop below MIN_ROW_CAPACITY
+      if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+            
+      //delete the last character
+      currentRow->chars[currentRow->length] = '\0';
+      //decrement character to account for the new shorter row
+      E.Cx--;
+      if(E.Cx <= E.sidescroll){
+        scrollLeft();
+      } 
+  }
 }
 
 void deletePrintableChar(void){
-    if(E.Cx > 0){
-        //temporary pointer to current row we're editing
-        row *currentRow = &E.rows[E.Cy-1];
+  /***
+   * Delete a printable character in response to the user pressing delete
+   */
+  if(E.Cx > 0){
+      //temporary pointer to current row we're editing
+      row *currentRow = &E.rows[E.Cy-1];
 
-        //shift left all the characters up to the cursor in the row
-        memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
-        currentRow->length--;
-        
-        //+1 to account for null terminator
-        size_t new_capacity = currentRow->length + 1;
-        //make sure we don't drop below MIN_ROW_CAPACITY
-        if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
-        
-        currentRow->chars[currentRow->length] = '\0';
-        //DO NOT decrement character to account for the new shorter row
-        //this is how delete is different from backspace
-    }
+      //shift left all the characters up to the cursor in the row
+      memmove(&currentRow->chars[E.Cx-1], &currentRow->chars[E.Cx], currentRow->length - E.Cx + 1);
+      currentRow->length--;
+      
+      //+1 to account for null terminator
+      size_t new_capacity = currentRow->length + 1;
+      //make sure we don't drop below MIN_ROW_CAPACITY
+      if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
+      
+      currentRow->chars[currentRow->length] = '\0';
+      //DO NOT decrement character to account for the new shorter row
+      //this is how delete is different from backspace
+  }
 }
 
 /*** User Input Processing ***/
-void searchPrompt(void){ //prompt the user for what word they want to search for(ctrl+f)
+void searchPrompt(void){
+  /***
+   * Prompt the user for what words they want to search for
+   */
   int oldX = E.Cx;
   int oldY = E.Cy;
   statusWrite("");
@@ -618,26 +704,29 @@ void searchPrompt(void){ //prompt the user for what word they want to search for
 }
 
 void sortEscapes(char c){
-    char *buff = malloc(4); //three character buffer to store all three characters of the arrow key commands
-    buff[0] = c;
-    read(STDIN_FILENO, buff + 1, 1); //read next byte of input into buf
-    read(STDIN_FILENO, buff + 2, 1); //read next byte of input into buf
-    if(buff[2] == '3'){ //delete key was pressed
-        read(STDIN_FILENO, buff + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
-        if(E.rows[E.Cy-1].length != 0){ //check if the row isn't empty
-            int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
-            if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
-                deletePrintableChar();
-            }
-        } else if(E.Cy != E.numrows){ //check that the cursor isn't on the bottom row
-            removeRow(0);
-        }
-    } else { //arrow key was pressed 
-        moveCursor(c, buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
-        //read in the rest of the command buffer, so that's why we use a separate moveCursor function
-    }
-    free(buff); //free memory allocated to buf
-    buff = NULL; //set buf back to NULL
+  /***
+   * Determine whether or not the user pressed delete or an arrow key and call the appropriate methods
+   */
+  char *buff = malloc(4); //three character buffer to store all three characters of the arrow key commands
+  buff[0] = c;
+  read(STDIN_FILENO, buff + 1, 1); //read next byte of input into buf
+  read(STDIN_FILENO, buff + 2, 1); //read next byte of input into buf
+  if(buff[2] == '3'){ //delete key was pressed
+      read(STDIN_FILENO, buff + 3, 1); //read in the last tilde of the delete sequence ("\x1b[3~")
+      if(E.rows[E.Cy-1].length != 0){ //check if the row isn't empty
+          int current_char = (int)E.rows[E.Cy-1].chars[E.Cx - 1];
+          if(current_char >= 32 && current_char < 127){ //check if the current character the cursor is on is a printable character
+              deletePrintableChar();
+          }
+      } else if(E.Cy != E.numrows){ //check that the cursor isn't on the bottom row
+          removeRow(0);
+      }
+  } else { //arrow key was pressed 
+      moveCursor(c, buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
+      //read in the rest of the command buffer, so that's why we use a separate moveCursor function
+  }
+  free(buff); //free memory allocated to buf
+  buff = NULL; //set buf back to NULL
 }
 
 void sortKeypress(char c){
@@ -649,10 +738,13 @@ void sortKeypress(char c){
    * 3. Delete a character(backspace)         
    * 4. Shift all characters in a row(space)
    * 5. Create a new line(enter)
-   * Each of these (1-5) will have their own function(s), which sortKeypress will call
+   * 6. Delete a row(backspace or enter)
+   * 7. Save File(ctrl+s)
+   * 8. Search for word(ctrl+b)
+   * Each of these (1-8) will have their own function(s), which sortKeypress will call
    */
   int ascii_code = (int)c;
-  if(ascii_code >= 32 && ascii_code < 127){ //the character inputted is a printable character, including space!
+  if(ascii_code >= 32 && ascii_code < 127){ //the character inputted is a printable character
     addPrintableChar(c);
   } else if (ascii_code == 13){ //user pressed enter
     addRow();
@@ -663,13 +755,12 @@ void sortKeypress(char c){
       backspacePrintableChar();
     }
   } else if (ascii_code == 27){ //escape character was pressed, weird functions coming up
-    //moveCursor(c); //this function will move the cursor and will need a special 3 character buffer to read the cursor move command
     sortEscapes(c);
   } else if (ascii_code == 9){ //tab was pressed
     tabPressed();
-  } else if (c == CTRL_KEY('s')){
+  } else if (c == CTRL_KEY('s')){ //ctrl+s was pressed
     saveFile();
-  }else if (c == CTRL_KEY('b')){
+  }else if (c == CTRL_KEY('b')){ //ctrl+b was pressed
     if(searchFlag == 0) searchPrompt();
     //searchQuery[0] = 'v'; //for debug purposes only
     //searchQuery[1] = 'o';
@@ -683,7 +774,11 @@ void sortKeypress(char c){
 }
 
 /*** Visible Output ***/
-void cursor_move_cmd(void){ //move cursor to location specified by global cursor
+void cursor_move_cmd(void){ 
+  /***
+   * Write the commands to STDOUT to make the visual change of moving the cursor to the location specified by
+   * the global editor object E
+   */
     write(STDOUT_FILENO, "\x1b[?25l", 6); //make cursor invisible
     int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.Cy, E.Cx)+1;
     char *buf = malloc(buf_size);
@@ -702,32 +797,38 @@ void cursor_move_cmd(void){ //move cursor to location specified by global cursor
 }
 
 char processKeypress(void){
-  //This function will read a key pressed from the user and return it, no more
-    char c = '\0';
-    read(STDIN_FILENO, &c, 1);
-    if(c == CTRL_KEY('c')){ //used to check if key pressed was CTRL-C which is the key to close the editor
-        write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
-        write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
-        free_all_rows();
-        exit(0);
-    }
+  /***
+   * Return the key pressed by the user and check if the user pressed ctrl+c to exit the editor
+   */
+  char c = '\0';
+  read(STDIN_FILENO, &c, 1);
+  if(c == CTRL_KEY('c')){ //used to check if key pressed was ctrl+c which is the key to close the editor
+      write(STDOUT_FILENO, "\x1b[2J", 4); //clear entire screen
+      write(STDOUT_FILENO, "\x1b[f", 3);  //move cursor to top left of screen
+      free_all_rows();
+      exit(0);
+  }
   return c;
 }
 
 void clearScreen(void){
+  /***
+   * Write the commands to clear the screen except for the status message row
+   */
   int buf_size = snprintf(NULL, 0, "\x1b[%d;%dH", E.w.ws_row, E.w.ws_col)+1;
   char *move_cmd = malloc(buf_size);
   snprintf(move_cmd, buf_size, "\x1b[%d;%dH", E.w.ws_row, E.w.ws_col);
   write(STDOUT_FILENO, move_cmd, buf_size-1);
 
-  write(STDOUT_FILENO, "\x1b[1J", 4); //clear the entire screen
+  write(STDOUT_FILENO, "\x1b[1J", 4); //clear the entire screen(except status message row)
   write(STDOUT_FILENO, "\x1b[H", 3); //reset cursor to top left(visible change)
   free(move_cmd);
 }
 
 void writeScreen(void){
   /***
-   * This will write each row within the global editor object's dynamic arrow of rows to the screen
+   * This will write each row within the global editor object's dynamic arrow of rows to the screen, account for comments,
+   * syntax highlighting, and search highlighting
    */
   int *markedRows;
   markedRows = markMultilineRows(); //mark all the rows highlighted by a multiline comment
@@ -819,6 +920,9 @@ void writeScreen(void){
 
 /*** File IO ***/
 void readFile(char *filename) {
+  /***
+   * Read a file into the global editor object E
+   */
     if(strlen(filename) > 256){
       printf("%s\n", "File name too large");
       return;
@@ -849,6 +953,9 @@ void readFile(char *filename) {
 }
 
 void saveFile(void){
+  /***
+   * Save the contents of the global editor object to a file
+   */
   statusWrite("Filename: ");
   
   char filename[MAX_FILENAME];
@@ -884,6 +991,9 @@ void saveFile(void){
 }
 
 void writeFile(char *filename){
+  /***
+   * Write the contents of a file to the screen
+   */
   FILE *fptr = fopen(filename, "w");
 
   if (fptr == NULL) {
@@ -906,6 +1016,9 @@ void writeFile(char *filename){
 }
 
 long getFileSize(FILE *file){
+  /***
+   * Get a file's size in bytes
+   */
   long size;
   fseek(file, 0, SEEK_END); //move pointer to end of file
   size = ftell(file); //get pointer position(this is the file size)
@@ -914,6 +1027,9 @@ long getFileSize(FILE *file){
 }
 
 char** readTextArray(char* filename){
+  /***
+   * Read a .txt file into an array
+   */
   //this method assumes the .txt file is in a format where each element of the array is on a separate line
   FILE *file;
   if((file = fopen(filename, "r")) == NULL){
@@ -962,6 +1078,9 @@ char** readTextArray(char* filename){
 
 /*** Status Bar Methods ***/
 void statusWrite(char *message){
+  /***
+   * Write a message to the special status bar
+   */
   E.Cy = E.w.ws_row + E.scroll + 1; //snap cursor to the lowest row reserved for status messsages
   E.Cx = E.sidescroll;
   cursor_move_cmd(); //move the cursor
@@ -973,6 +1092,9 @@ void statusWrite(char *message){
 
 /*** Searching Methods ***/
 void searchHighlight(char **chars){
+  /***
+   * Highlight the characters the user searched for
+   */
   char *foundWord;
   int index = 0;
   int searchOffset = 0;
@@ -992,6 +1114,9 @@ void searchHighlight(char **chars){
 
 /*** Syntax Highlighting***/
 void highlightSyntax(char **chars, int inlineHighlight){
+  /***
+   * Highlight keywords in blue
+   */
   int indicesLen = 0;
   //find the number of keywords in a line
   int keywordCount = 0;
@@ -1014,6 +1139,9 @@ void highlightSyntax(char **chars, int inlineHighlight){
 }
 
 int inlineCommentHighlight(char **chars){
+  /***
+   * Changes inline comments to green
+   */
   char* foundWord;
   foundWord = strstr(*chars, "//");
   if(foundWord != NULL){
@@ -1026,6 +1154,9 @@ int inlineCommentHighlight(char **chars){
 }
 
 void multilineCommentHighlight(char **chars){
+  /***
+   * Handles making green rows that are included in multiline comments
+   */
   char* foundWord;
   foundWord = strstr(*chars, "/*");
   if(foundWord != NULL){
@@ -1063,11 +1194,17 @@ int* markMultilineRows(void){
 }
 
 void commentEntireRow(char **chars){
+  /***
+   * Make an entire row green to denote it is commented out
+   */
   insertStr(chars, "\x1b[38;5;22m", 0);
   insertStr(chars, "\x1b[0m", strlen(*chars));
 }
 
 int checkKeywordHighlight(char *fullLine, char *word, int wordlen){
+  /***
+   * Check if a found keyword should be highlighted, making sure it isn't embedded within another string
+   */
   int passed = 1;
   if(word != fullLine){
     if(((int)*(word - 1) >= 65 && (int)*(word - 1) <= 90)|| 
@@ -1099,9 +1236,9 @@ int main(int argc, char *argv[]){
     writeScreen();
   }
 
-  readFile("notepadmm.c");  //for debug purposes only
-  clearScreen();
-  writeScreen();
+  //readFile("notepadmm.c");  //for debug purposes only
+  //clearScreen();
+  //writeScreen();
 
   while(1){ 
     char c = processKeypress();
