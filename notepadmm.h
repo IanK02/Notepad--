@@ -12,7 +12,7 @@ void appendRow(void);
 void shiftRowsDown(int);
 void cursor_move_cmd(void);
 void incrementCursor(int, int, int, int);
-void moveCursor(char, char *);
+void moveCursor(char *);
 void addPrintableChar(char);
 void backspacePrintableChar(void);
 void deletePrintableChar(void);

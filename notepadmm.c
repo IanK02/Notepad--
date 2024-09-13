@@ -215,7 +215,6 @@ char* sideScrollCharSet(row *row){
    * Returns the string(adjusted for sidescroll and window size) that is to be printed to the screen
    */
   int offset = 0;
-  int offScreenFlag = 0;
   if((row->length - E.sidescroll) >= E.w.ws_col){
     char *substr;
     substr = malloc(E.w.ws_col + offset + 1); //+1 for null terminator
@@ -231,14 +230,15 @@ char* sideScrollCharSet(row *row){
   } else if(E.sidescroll > row->length){
     return NULL;
   }
+  return NULL;
 }
 
 void setChars(row *row, char *chars, int strlen){
   /***
    * Sets the characters of row to chars
    */
-  if(row->capacity <= strlen){//reallocate row's capacity if needed
-    row->chars = realloc(row->chars, strlen+1); //+1 for null terminator
+  if(row->capacity <= (size_t)strlen){//reallocate row's capacity if needed
+    row->chars = realloc(row->chars, (size_t)(strlen+1)); //+1 for null terminator
     row->capacity = strlen + 1;
   }
 
@@ -419,7 +419,7 @@ void removeRow(int backSpace){
     incrementCursor(1,0,0,0); //increment cursor u
     int cy = E.Cy;
 
-    if(E.rows[cy-1].length + E.rows[cy].length + 1 >= E.rows[cy-1].capacity){
+    if(E.rows[cy-1].length + E.rows[cy].length + 1 >= (int)E.rows[cy-1].capacity){
       E.rows[cy-1].chars = realloc(E.rows[cy-1].chars, E.rows[cy-1].capacity + E.rows[cy].length + 1);
       E.rows[cy-1].capacity += E.rows[cy].length + 1;
     }
@@ -505,7 +505,7 @@ void incrementCursor(int up, int down, int left, int right){
     }
 }   
 
-void moveCursor(char c, char *buf){
+void moveCursor(char *buf){
   /***
    * Map user arrow key presses to cursor movements
    */
@@ -620,7 +620,7 @@ void addPrintableChar(char c) {
     row *currentRow = &E.rows[E.Cy-1];
     
     //double capacity if needed
-    if (currentRow->length + 2 > currentRow->capacity) {//+2 for new char and null terminator
+    if (currentRow->length + 2 > (int)currentRow->capacity) {//+2 for new char and null terminator
       size_t new_capacity = GROW_CAPACITY(currentRow->capacity);
       //make sure we don't drop below MIN_ROW_CAPACITY
       if (new_capacity < MIN_ROW_CAPACITY) new_capacity = MIN_ROW_CAPACITY;
@@ -751,10 +751,10 @@ void sortEscapes(char c){
       removeRow(0);
     }
   } else { //arrow key was pressed 
-    moveCursor(c, buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
+    moveCursor(buff); //moveCursor will only increment C's position, we can't just increment Cy or Cx because we have to 
     //read in the rest of the command buffer, so that's why we use a separate moveCursor function
   }
-  free(buff); //free memory allocated to buf
+  free(buff); //free memory allocated to buff
   buff = NULL; //set buf back to NULL
 }
 
@@ -980,7 +980,8 @@ void readFile(char *filename) {
     appendRow(); //add a new row
     setChars(&E.rows[E.numrows-1], line, read-1); //-1 to exclude the \n because writeScreen will add it
   }
-  setChars(&E.rows[E.numrows-1], line, E.rows[E.numrows-1].length + 1); //add on the last character of the file
+  
+  if(E.numrows > 1) setChars(&E.rows[E.numrows-1], line, E.rows[E.numrows-1].length + 1); //add on the last character of the file
 
   free(line);
   fclose(current_file); 
@@ -1168,6 +1169,7 @@ void highlightSyntax(char **chars, int inlineHighlight){
         if(checkKeywordHighlight(*chars, foundWord, strlen(keywords[i])) && index < inlineHighlight){
           insertStr(chars, "\x1b[38;5;26m", index);
           insertStr(chars, "\x1b[0m", index + 10 + strlen(keywords[i]));
+          inlineHighlight += 14;
           foundWord = strstr(*chars + index + 14 + strlen(keywords[i]), keywords[i]);
         } else{
           foundWord = strstr(*chars + index + strlen(keywords[i]), keywords[i]);
@@ -1191,7 +1193,7 @@ int inlineCommentHighlight(char **chars){
       return index;
     }
   }
-  return __INT_MAX__;
+  return 8000;
 }
 
 void multilineCommentHighlight(char **chars){
@@ -1270,7 +1272,7 @@ int main(int argc, char *argv[]){
   if(argc == 2){
     initEditor(argv[1]);
   } else {
-    initEditor("");
+    initEditor("hello_world.c");
   }
   if(argc == 2){
     char *filename = argv[1];
