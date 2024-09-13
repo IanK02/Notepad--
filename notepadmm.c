@@ -869,7 +869,7 @@ void writeScreen(void){
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars);
-        searchHighlight(&written_chars);
+        searchHighlight(&written_chars, commented, markedRows[i]);
         if(markedRows[i] == 0) highlightSyntax(&written_chars, commented);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
@@ -889,7 +889,7 @@ void writeScreen(void){
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars);
-        searchHighlight(&written_chars);
+        searchHighlight(&written_chars, commented, markedRows[E.numrows-1]);
         if(markedRows[E.numrows-1] == 0) highlightSyntax(&written_chars, commented);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
@@ -909,7 +909,7 @@ void writeScreen(void){
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars);
-        searchHighlight(&written_chars);
+        searchHighlight(&written_chars, commented, markedRows[i]);
         if(markedRows[i] == 0) highlightSyntax(&written_chars, commented);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
@@ -931,7 +931,7 @@ void writeScreen(void){
       if(searchFlag) {
         written_chars = sideScrollCharSet(&dup_row);
         commented = inlineCommentHighlight(&written_chars);
-        searchHighlight(&written_chars);
+        searchHighlight(&written_chars, commented, markedRows[E.scroll + E.w.ws_row - 1]);
         if(commented == 0 && markedRows[E.scroll + E.w.ws_row - 1] == 0) highlightSyntax(&written_chars, commented);
       } else {
         written_chars = sideScrollCharSet(&dup_row);
@@ -1127,7 +1127,7 @@ void statusWrite(char *message){
 }
 
 /*** Searching Methods ***/
-void searchHighlight(char **chars){
+void searchHighlight(char **chars, int commentIndex, int multiline){
   /***
    * Highlight the characters the user searched for
    */
@@ -1142,7 +1142,11 @@ void searchHighlight(char **chars){
         index = foundWord - *chars;
         if(foundWord != NULL) {
           insertStr(chars, "\x1b[48;5;160m", index);
-          insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
+          if(index > commentIndex || multiline){
+            insertStr(chars, "\x1b[0m\x1b[38;5;22m", index + 11 + strlen(searchQuery));
+          } else {
+            insertStr(chars, "\x1b[0m", index + 11 + strlen(searchQuery));
+          }
           foundWord = strstr(*chars + index + searchOffset + 15, searchQuery);
         }
       }

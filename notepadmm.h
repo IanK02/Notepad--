@@ -31,7 +31,7 @@ void statusWrite(char *);
 long getFileSize(FILE *);
 void scrollRight(void);
 void scrollLeft(void);
-void searchHighlight(char **);
+void searchHighlight(char **, int, int);
 void searchPrompt(void);
 void highlightSyntax(char **, int);
 char** readTextArray(char *);
@@ -42,4 +42,4 @@ void commentEntireRow(char **);
 int checkKeywordHighlight(char *, char *, int);
 void printCursorPos(void);
 
-#endif 
+#endif
