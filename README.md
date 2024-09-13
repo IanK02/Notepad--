@@ -6,7 +6,7 @@ Notepad-- is a simple text editor writtten in C without the curses library. It f
 1. Download the code into a .zip
 2. Unzip the .zip file
 3. Using a Linux Terminal cd into the unzipped folder
-4. Type `make` at the command line to compile the editor
+4. Type `make` at the command line to compile the editor. Note that some systems do not come with make installed by default and you may need to type `sudo apt install make`.
 5. Use `./notepadmm <filename>` to open the editor, or `./notepadmm` to create a new file
 6. Use ctrl+S to save work, ctrl+B to search, and ctrl+C to quit
 
