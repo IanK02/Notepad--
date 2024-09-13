@@ -722,7 +722,7 @@ void searchPrompt(void){
    */
   int oldX = E.Cx;
   int oldY = E.Cy;
-  statusWrite("");
+  statusWrite("Search: ");
 
   exitRawMode();
   fgets(searchQuery, sizeof(searchQuery), stdin);
