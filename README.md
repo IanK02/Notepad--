@@ -1,6 +1,6 @@
 # Notepad--
 
-Notepad-- is a simple text editor writtten in C without the curses library. It features simple keyword highlighting and a search function(ctrl+B)
+Notepad-- is a simple text editor writtten in C without the curses library. It features simple keyword highlighting and a search function(ctrl+B). [Demo](https://youtu.be/E2w9R3pia-w)
 
 ## Install and Use
 1. Download the code into a .zip
